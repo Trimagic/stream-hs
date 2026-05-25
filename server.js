@@ -48,8 +48,10 @@ const mimeTypes = new Map([
 
 const directPlayExtensions = new Set([".mp4", ".m4v", ".webm", ".ogv", ".ogg"]);
 const transcodeExtensions = new Set([".mkv", ".avi", ".wmv", ".mov"]);
+const cacheVersion = "2026-05-25-duration-metadata-v1";
 const transcodeJobs = new Map();
 const hlsJobs = new Map();
+const metadataCache = new Map();
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
 function normalizeStartupRoot(args, envRoot) {
@@ -317,6 +319,79 @@ async function prepareVideo(relativePath) {
   };
 }
 
+async function getVideoMetadata(relativePath) {
+  const filePath = resolveMediaPath(relativePath);
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile() || !videoExtensions.has(path.extname(filePath).toLowerCase())) {
+    const error = new Error("Video not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const cache = getCacheInfo(filePath, stat);
+  const cached = metadataCache.get(cache.key);
+  if (cached) return cached;
+
+  const duration = await probeDuration(filePath).catch(() => null);
+  const metadata = {
+    duration,
+    durationLabel: duration ? formatDuration(duration) : null
+  };
+  metadataCache.set(cache.key, metadata);
+  return metadata;
+}
+
+function probeDuration(filePath) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      filePath
+    ];
+    const ffprobe = spawn(process.env.FFPROBE_PATH || "ffprobe", args, {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+
+    let stdout = "";
+    let stderr = "";
+
+    ffprobe.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+    });
+    ffprobe.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    ffprobe.once("error", reject);
+    ffprobe.once("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || `ffprobe exited with code ${code}`));
+        return;
+      }
+
+      const value = Number(stdout.trim());
+      resolve(Number.isFinite(value) && value > 0 ? value : null);
+    });
+  });
+}
+
+function formatDuration(seconds) {
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = total % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
+}
+
 async function startHlsVideo(relativePath) {
   const filePath = resolveMediaPath(relativePath);
   const stat = await fs.stat(filePath);
@@ -380,7 +455,7 @@ async function startHlsVideo(relativePath) {
 function getCacheInfo(filePath, stat) {
   const hash = crypto
     .createHash("sha256")
-    .update(`${filePath}:${stat.size}:${stat.mtimeMs}`)
+    .update(`${cacheVersion}:${filePath}:${stat.size}:${stat.mtimeMs}`)
     .digest("hex");
   const key = hash.slice(0, 32);
   return {
@@ -721,6 +796,11 @@ async function handleApi(req, res, url) {
   if (url.pathname === "/api/prepare" && req.method === "POST") {
     const body = await parseJsonBody(req);
     const data = await prepareVideo(body.path || "");
+    return sendJson(res, 200, data);
+  }
+
+  if (url.pathname === "/api/metadata" && req.method === "GET") {
+    const data = await getVideoMetadata(url.searchParams.get("path") || "");
     return sendJson(res, 200, data);
   }
 

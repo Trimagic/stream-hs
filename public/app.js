@@ -17,6 +17,8 @@ const volumeSlider = document.querySelector("#volumeSlider");
 let currentPath = "";
 let activePlaybackToken = 0;
 let isSeeking = false;
+let expectedDuration = null;
+let playbackMode = "idle";
 
 player.volume = Number(volumeSlider.value);
 
@@ -37,6 +39,8 @@ rootForm.addEventListener("submit", async (event) => {
     player.removeAttribute("src");
     player.load();
     nowPlaying.textContent = "Select a video";
+    expectedDuration = null;
+    playbackMode = "idle";
     updateControls();
     await loadFolder("");
   } catch (error) {
@@ -199,6 +203,8 @@ function renderVideos(videos) {
 
 async function playVideo(video, button) {
   const playbackToken = ++activePlaybackToken;
+  expectedDuration = null;
+  playbackMode = video.directPlay ? "file" : "live";
 
   try {
     clearMessage();
@@ -211,6 +217,7 @@ async function playVideo(video, button) {
       ? `/api/video?path=${encodeURIComponent(video.path)}`
       : await getLiveSource(video.path);
 
+    loadVideoMetadata(video.path, playbackToken);
     player.src = source;
     updateControls();
     await player.play().catch(() => {
@@ -295,6 +302,7 @@ function canPlayHls() {
 async function switchToPreparedVideo(url) {
   const resumeAt = Number.isFinite(player.currentTime) ? player.currentTime : 0;
   const wasPaused = player.paused;
+  playbackMode = "file";
 
   player.src = url;
   player.load();
@@ -314,20 +322,34 @@ async function switchToPreparedVideo(url) {
   showMessage("Prepared version is ready. Duration, pause, and seeking should now work normally.");
 }
 
+async function loadVideoMetadata(path, playbackToken) {
+  try {
+    const response = await fetch(`/api/metadata?path=${encodeURIComponent(path)}`);
+    const metadata = await readJson(response);
+    if (playbackToken !== activePlaybackToken) return;
+
+    expectedDuration = Number.isFinite(metadata.duration) ? metadata.duration : null;
+    updateControls();
+  } catch {
+    expectedDuration = null;
+  }
+}
+
 function updateControls() {
   playToggle.textContent = player.paused ? "Play" : "Pause";
+  const visibleDuration = getVisibleDuration();
 
   if (!canSeek()) {
     seekSlider.disabled = true;
     seekSlider.value = "0";
     currentTimeLabel.textContent = formatTime(player.currentTime || 0);
-    durationTimeLabel.textContent = player.src ? "Live" : "0:00";
+    durationTimeLabel.textContent = visibleDuration ? formatTime(visibleDuration) : player.src ? "Live" : "0:00";
     updateVolumeControls();
     return;
   }
 
   seekSlider.disabled = false;
-  durationTimeLabel.textContent = formatTime(player.duration);
+  durationTimeLabel.textContent = formatTime(visibleDuration || player.duration);
   currentTimeLabel.textContent = formatTime(player.currentTime || 0);
 
   if (!isSeeking) {
@@ -346,7 +368,13 @@ function updateVolumeControls() {
 }
 
 function canSeek() {
-  return Number.isFinite(player.duration) && player.duration > 0;
+  return playbackMode === "file" && Number.isFinite(player.duration) && player.duration > 0;
+}
+
+function getVisibleDuration() {
+  if (playbackMode === "live" && expectedDuration) return expectedDuration;
+  if (Number.isFinite(player.duration) && player.duration > 0) return player.duration;
+  return expectedDuration;
 }
 
 function sliderValueToTime() {
