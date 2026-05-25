@@ -55,6 +55,7 @@ const hlsVodSessions = new Map();
 const hlsSegmentJobs = new Map();
 const metadataCache = new Map();
 const hlsPrewarmSegments = Number(process.env.HLS_PREWARM_SEGMENTS || 3);
+const hlsChunkSegments = Number(process.env.HLS_CHUNK_SEGMENTS || 6);
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
 function normalizeStartupRoot(args, envRoot) {
@@ -822,24 +823,34 @@ async function ensureHlsVodSegment(session, segmentIndex) {
   const segmentPath = path.join(session.outputDir, `segment_${segmentIndex}.ts`);
   if (await fileExists(segmentPath)) return segmentPath;
 
-  const jobKey = `${session.key}:${segmentIndex}`;
+  const chunkStart = Math.floor(segmentIndex / hlsChunkSegments) * hlsChunkSegments;
+  const jobKey = `${session.key}:chunk:${chunkStart}`;
   const existing = hlsSegmentJobs.get(jobKey);
-  if (existing) return existing;
+  if (existing) {
+    await existing;
+    return segmentPath;
+  }
 
-  const job = generateHlsVodSegment(session, segmentIndex)
+  const job = generateHlsVodSegmentChunk(session, chunkStart)
     .finally(() => hlsSegmentJobs.delete(jobKey));
   hlsSegmentJobs.set(jobKey, job);
-  return job;
+  await job;
+  return segmentPath;
 }
 
-async function generateHlsVodSegment(session, segmentIndex) {
+async function generateHlsVodSegmentChunk(session, chunkStart) {
   await fs.mkdir(session.outputDir, { recursive: true });
-  const segmentPath = path.join(session.outputDir, `segment_${segmentIndex}.ts`);
-  const tempPath = path.join(session.outputDir, `segment_${segmentIndex}.tmp.ts`);
-  const start = segmentIndex * session.segmentDuration;
-  const duration = Math.min(session.segmentDuration, session.duration - start);
+  const chunkEnd = Math.min(session.segmentCount, chunkStart + hlsChunkSegments);
+  const start = chunkStart * session.segmentDuration;
+  const duration = Math.min((chunkEnd - chunkStart) * session.segmentDuration, session.duration - start);
+  const tempDir = path.join(session.outputDir, `chunk_${chunkStart}.tmp`);
 
-  await fs.rm(tempPath, { force: true }).catch(() => {});
+  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  await fs.mkdir(tempDir, { recursive: true });
+
+  for (let index = chunkStart; index < chunkEnd; index += 1) {
+    await fs.rm(path.join(session.outputDir, `segment_${index}.ts`), { force: true }).catch(() => {});
+  }
 
   const args = [
     "-hide_banner",
@@ -852,6 +863,10 @@ async function generateHlsVodSegment(session, segmentIndex) {
     session.filePath,
     "-t",
     String(duration),
+    "-fflags",
+    "+genpts",
+    "-avoid_negative_ts",
+    "make_zero",
     "-map",
     "0:v:0",
     "-map",
@@ -860,16 +875,31 @@ async function generateHlsVodSegment(session, segmentIndex) {
     "-dn",
     ...browserVideoArgs(),
     ...browserAudioArgs(),
-    "-mpegts_flags",
-    "+initial_discontinuity",
     "-f",
+    "segment",
+    "-segment_time",
+    String(session.segmentDuration),
+    "-segment_format",
     "mpegts",
-    tempPath
+    "-reset_timestamps",
+    "1",
+    "-segment_start_number",
+    String(chunkStart),
+    path.join(tempDir, "segment_%d.ts")
   ];
 
   await runFfmpegFile(args);
-  await fs.rename(tempPath, segmentPath);
-  return segmentPath;
+
+  for (let index = chunkStart; index < chunkEnd; index += 1) {
+    const tempPath = path.join(tempDir, `segment_${index}.ts`);
+    const segmentPath = path.join(session.outputDir, `segment_${index}.ts`);
+    if (!(await fileExists(tempPath))) {
+      throw new Error(`ffmpeg did not create segment ${index}`);
+    }
+    await fs.rename(tempPath, segmentPath);
+  }
+
+  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
 }
 
 function runFfmpegFile(args) {
