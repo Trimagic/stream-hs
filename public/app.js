@@ -108,6 +108,16 @@ player.addEventListener("loadedmetadata", updateControls);
 player.addEventListener("durationchange", updateControls);
 player.addEventListener("timeupdate", updateControls);
 player.addEventListener("volumechange", updateVolumeControls);
+player.addEventListener("error", () => {
+  const code = player.error?.code;
+  const details = {
+    1: "playback was aborted",
+    2: "network error",
+    3: "decode error",
+    4: "format is not supported"
+  };
+  showMessage(`Video error${code ? ` ${code}: ${details[code] || "unknown media error"}` : ""}.`);
+});
 
 async function init() {
   try {

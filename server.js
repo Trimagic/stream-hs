@@ -54,6 +54,7 @@ const hlsJobs = new Map();
 const hlsVodSessions = new Map();
 const hlsSegmentJobs = new Map();
 const metadataCache = new Map();
+const hlsPrewarmSegments = Number(process.env.HLS_PREWARM_SEGMENTS || 3);
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
 function normalizeStartupRoot(args, envRoot) {
@@ -498,6 +499,7 @@ async function startHlsVod(relativePath) {
 
   hlsVodSessions.set(cache.key, session);
   await fs.mkdir(session.outputDir, { recursive: true });
+  await prewarmHlsVodSegments(session, 0);
 
   return {
     status: "ready",
@@ -767,6 +769,9 @@ async function serveHlsVod(req, res, pathname) {
   }
 
   const segmentPath = await ensureHlsVodSegment(session, segmentIndex);
+  prewarmHlsVodSegments(session, segmentIndex + 1).catch((error) => {
+    console.error(`HLS prewarm failed: ${error.message}`);
+  });
   const stat = await fs.stat(segmentPath);
 
   res.writeHead(200, {
@@ -791,6 +796,7 @@ function sendHlsVodPlaylist(res, session) {
   for (let index = 0; index < session.segmentCount; index += 1) {
     const start = index * session.segmentDuration;
     const duration = Math.min(session.segmentDuration, session.duration - start);
+    if (index > 0) lines.push("#EXT-X-DISCONTINUITY");
     lines.push(`#EXTINF:${duration.toFixed(3)},`);
     lines.push(`segment_${index}.ts`);
   }
@@ -803,6 +809,13 @@ function sendHlsVodPlaylist(res, session) {
     "cache-control": "no-store"
   });
   res.end(body);
+}
+
+async function prewarmHlsVodSegments(session, startIndex) {
+  const endIndex = Math.min(session.segmentCount, startIndex + hlsPrewarmSegments);
+  for (let index = startIndex; index < endIndex; index += 1) {
+    await ensureHlsVodSegment(session, index);
+  }
 }
 
 async function ensureHlsVodSegment(session, segmentIndex) {
