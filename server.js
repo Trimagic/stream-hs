@@ -552,9 +552,11 @@ function browserVideoArgs() {
     "-pix_fmt",
     "yuv420p",
     "-profile:v",
-    process.env.FFMPEG_PROFILE || "main",
+    process.env.FFMPEG_PROFILE || "baseline",
     "-level",
     process.env.FFMPEG_LEVEL || "4.0",
+    "-bf",
+    "0",
     "-g",
     process.env.FFMPEG_GOP || "48",
     "-keyint_min",
@@ -801,7 +803,7 @@ function sendHlsVodPlaylist(res, session) {
   for (let index = 0; index < session.segmentCount; index += 1) {
     const start = index * session.segmentDuration;
     const duration = Math.min(session.segmentDuration, session.duration - start);
-    if (index > 0 && index % hlsChunkSegments === 0) lines.push("#EXT-X-DISCONTINUITY");
+    if (index > 0) lines.push("#EXT-X-DISCONTINUITY");
     lines.push(`#EXTINF:${duration.toFixed(3)},`);
     lines.push(`segment_${index}.ts`);
   }
@@ -885,8 +887,14 @@ async function generateHlsVodSegmentChunk(session, chunkStart) {
     String(session.segmentDuration),
     "-segment_format",
     "mpegts",
-    "-reset_timestamps",
+    "-mpegts_flags",
+    "+initial_discontinuity",
+    "-muxdelay",
     "0",
+    "-muxpreload",
+    "0",
+    "-reset_timestamps",
+    "1",
     "-segment_start_number",
     String(chunkStart),
     path.join(tempDir, "segment_%d.ts")

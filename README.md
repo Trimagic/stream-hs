@@ -62,6 +62,7 @@ Useful tuning environment variables:
 - `HLS_INITIAL_SEGMENTS` controls how many segments are generated before playback starts. Default: `6`.
 - `HLS_PREWARM_SEGMENTS` controls how many upcoming segments are kept warm in the background. Default: `18`.
 - `HLS_CHUNK_SEGMENTS` controls how many segments one ffmpeg process generates at once. Default: `6`.
+- `FFMPEG_PROFILE` controls H.264 profile. Default: `baseline` for wider TV compatibility.
 
 ## API
 
