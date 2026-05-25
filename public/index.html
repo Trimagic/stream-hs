@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Video Streamer</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar" aria-label="Media root">
+        <div>
+          <h1>Video Streamer</h1>
+          <p id="rootLabel">Root is not configured</p>
+        </div>
+        <form id="rootForm" class="root-form">
+          <input id="rootInput" name="root" type="text" autocomplete="off" placeholder="C:\Videos or /home/user/videos">
+          <button type="submit">Open</button>
+        </form>
+      </section>
+
+      <section class="player-section" aria-label="Video player">
+        <video id="player" controls preload="metadata"></video>
+        <div class="now-playing">
+          <span>Now playing</span>
+          <strong id="nowPlaying">Select a video</strong>
+        </div>
+      </section>
+
+      <section class="browser">
+        <nav id="breadcrumbs" class="breadcrumbs" aria-label="Breadcrumbs"></nav>
+        <div id="message" class="message" hidden></div>
+        <div id="folderList" class="grid"></div>
+        <div id="videoList" class="list"></div>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
