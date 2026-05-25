@@ -9,6 +9,13 @@ Small web client and Node.js backend for browsing a media folder and streaming v
 
 No npm dependencies are required.
 
+For `.mkv`, `.avi`, `.wmv`, and some `.mov` files, install `ffmpeg` so the server can transcode video and audio to a browser-friendly MP4 stream:
+
+```bash
+sudo apt update
+sudo apt install ffmpeg
+```
+
 ## Run
 
 Pass the media folder as an argument:
@@ -46,6 +53,7 @@ The browser lists folders plus these video extensions:
 ```
 
 Streaming supports HTTP byte ranges, so the browser can seek inside videos.
+MKV playback uses live transcoding through `ffmpeg`, because browsers often do not support the audio codecs commonly stored in MKV files.
 
 ## API
 
@@ -53,5 +61,6 @@ Streaming supports HTTP byte ranges, so the browser can seek inside videos.
 - `POST /api/root` with `{ "path": "..." }` sets the root folder.
 - `GET /api/browse?path=relative/path` returns folders and video files.
 - `GET /api/video?path=relative/path/file.mp4` streams the selected video.
+- `GET /api/transcode?path=relative/path/file.mkv` transcodes the selected video to MP4/AAC while streaming.
 
 The backend resolves every media path against the configured root and rejects attempts to access files outside it.

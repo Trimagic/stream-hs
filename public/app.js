@@ -136,7 +136,8 @@ function renderVideos(videos) {
 }
 
 function playVideo(video) {
-  const source = `/api/video?path=${encodeURIComponent(video.path)}`;
+  const endpoint = video.directPlay ? "/api/video" : "/api/transcode";
+  const source = `${endpoint}?path=${encodeURIComponent(video.path)}`;
   player.src = source;
   player.play().catch(() => {
     showMessage("Browser blocked autoplay. Press play in the video player.");

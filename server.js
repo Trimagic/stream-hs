@@ -1,4 +1,5 @@
 import { createReadStream, promises as fs } from "node:fs";
+import { spawn } from "node:child_process";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,6 +41,8 @@ const mimeTypes = new Map([
   [".wmv", "video/x-ms-wmv"]
 ]);
 
+const directPlayExtensions = new Set([".mp4", ".m4v", ".webm", ".ogv", ".ogg"]);
+const transcodeExtensions = new Set([".mkv", ".avi", ".wmv", ".mov"]);
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
 function normalizeStartupRoot(args, envRoot) {
@@ -161,6 +164,8 @@ async function browse(relativePath) {
       videos.push({
         name: entry.name,
         path: itemPath,
+        directPlay: directPlayExtensions.has(path.extname(entry.name).toLowerCase()),
+        canTranscode: transcodeExtensions.has(path.extname(entry.name).toLowerCase()),
         size: fileStat.size,
         modifiedAt: fileStat.mtime.toISOString()
       });
@@ -241,6 +246,88 @@ async function streamVideo(req, res, relativePath) {
   createReadStream(filePath, { start, end: boundedEnd }).pipe(res);
 }
 
+async function transcodeVideo(req, res, relativePath) {
+  const filePath = resolveMediaPath(relativePath);
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile() || !videoExtensions.has(path.extname(filePath).toLowerCase())) {
+    return sendText(res, 404, "Video not found");
+  }
+
+  const ffmpegArgs = [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-i",
+    filePath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-sn",
+    "-dn",
+    "-c:v",
+    "libx264",
+    "-preset",
+    process.env.FFMPEG_PRESET || "veryfast",
+    "-crf",
+    process.env.FFMPEG_CRF || "23",
+    "-c:a",
+    "aac",
+    "-b:a",
+    process.env.FFMPEG_AUDIO_BITRATE || "160k",
+    "-ac",
+    "2",
+    "-movflags",
+    "frag_keyframe+empty_moov+default_base_moof",
+    "-f",
+    "mp4",
+    "pipe:1"
+  ];
+
+  const ffmpeg = spawn(process.env.FFMPEG_PATH || "ffmpeg", ffmpegArgs, {
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  let stderr = "";
+  ffmpeg.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  ffmpeg.once("error", (error) => {
+    if (!res.headersSent) {
+      const message = error.code === "ENOENT"
+        ? "ffmpeg is not installed or is not available in PATH"
+        : error.message;
+      sendJson(res, 500, { error: message });
+    } else {
+      res.destroy(error);
+    }
+  });
+
+  ffmpeg.once("spawn", () => {
+    res.writeHead(200, {
+      "content-type": "video/mp4",
+      "cache-control": "no-store"
+    });
+    if (req.method === "HEAD") {
+      ffmpeg.kill("SIGKILL");
+      return res.end();
+    }
+    ffmpeg.stdout.pipe(res);
+  });
+
+  ffmpeg.once("close", (code) => {
+    if (code && code !== 255 && stderr.trim()) {
+      console.error(`ffmpeg exited with code ${code}: ${stderr.trim()}`);
+    }
+  });
+
+  req.on("close", () => {
+    if (!ffmpeg.killed) ffmpeg.kill("SIGKILL");
+  });
+}
+
 async function serveStatic(req, res, pathname) {
   const requested = pathname === "/" ? "/index.html" : pathname;
   const target = path.resolve(publicDir, `.${requested}`);
@@ -281,6 +368,10 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === "/api/video" && (req.method === "GET" || req.method === "HEAD")) {
     return streamVideo(req, res, url.searchParams.get("path") || "");
+  }
+
+  if (url.pathname === "/api/transcode" && (req.method === "GET" || req.method === "HEAD")) {
+    return transcodeVideo(req, res, url.searchParams.get("path") || "");
   }
 
   return sendJson(res, 404, { error: "API route not found" });
