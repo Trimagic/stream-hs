@@ -126,8 +126,8 @@ function renderVideos(videos) {
       const button = document.createElement("button");
       button.className = "video-button";
       button.type = "button";
-      button.textContent = "Play";
-      button.addEventListener("click", () => playVideo(video));
+      button.textContent = video.directPlay ? "Play" : "Prepare";
+      button.addEventListener("click", () => playVideo(video, button));
 
       row.append(name, meta, button);
       return row;
@@ -135,14 +135,57 @@ function renderVideos(videos) {
   );
 }
 
-function playVideo(video) {
-  const endpoint = video.directPlay ? "/api/video" : "/api/transcode";
-  const source = `${endpoint}?path=${encodeURIComponent(video.path)}`;
-  player.src = source;
-  player.play().catch(() => {
-    showMessage("Browser blocked autoplay. Press play in the video player.");
-  });
-  nowPlaying.textContent = video.name;
+async function playVideo(video, button) {
+  try {
+    clearMessage();
+    if (button) {
+      button.disabled = true;
+      button.textContent = video.directPlay ? "Opening" : "Preparing";
+    }
+
+    const source = video.directPlay
+      ? `/api/video?path=${encodeURIComponent(video.path)}`
+      : await prepareCachedVideo(video.path);
+
+    player.src = source;
+    await player.play().catch(() => {
+      showMessage("Browser blocked autoplay. Press play in the video player.");
+    });
+    nowPlaying.textContent = video.name;
+  } catch (error) {
+    showMessage(error.message);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = video.directPlay ? "Play" : "Play";
+    }
+  }
+}
+
+async function prepareCachedVideo(path) {
+  for (;;) {
+    const response = await fetch("/api/prepare", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path })
+    });
+    const payload = await readJson(response);
+
+    if (payload.status === "ready") {
+      return payload.url;
+    }
+
+    if (payload.status === "error") {
+      throw new Error(payload.error || "Video conversion failed.");
+    }
+
+    showMessage("Preparing browser-compatible video. First start can take a few minutes.");
+    await delay(2500);
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function renderEmpty() {

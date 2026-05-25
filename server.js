@@ -1,11 +1,13 @@
 import { createReadStream, promises as fs } from "node:fs";
 import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "public");
+const cacheDir = path.join(__dirname, ".cache", "transcoded");
 const port = Number(process.env.PORT || 3000);
 
 const videoExtensions = new Set([
@@ -43,6 +45,7 @@ const mimeTypes = new Map([
 
 const directPlayExtensions = new Set([".mp4", ".m4v", ".webm", ".ogv", ".ogg"]);
 const transcodeExtensions = new Set([".mkv", ".avi", ".wmv", ".mov"]);
+const transcodeJobs = new Map();
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
 function normalizeStartupRoot(args, envRoot) {
@@ -93,6 +96,10 @@ function resolveMediaPath(relativePath = "") {
 function toClientPath(absolutePath) {
   const relative = path.relative(mediaRoot, absolutePath);
   return relative === "" ? "" : relative.split(path.sep).join("/");
+}
+
+async function fileExists(filePath) {
+  return Boolean(await fs.stat(filePath).catch(() => null));
 }
 
 function parseJsonBody(req) {
@@ -204,6 +211,10 @@ async function streamVideo(req, res, relativePath) {
     return sendText(res, 404, "Video not found");
   }
 
+  return streamFile(req, res, filePath, stat);
+}
+
+async function streamFile(req, res, filePath, stat) {
   const total = stat.size;
   const range = req.headers.range;
   const contentType = mimeTypes.get(path.extname(filePath).toLowerCase()) || "application/octet-stream";
@@ -244,6 +255,156 @@ async function streamVideo(req, res, relativePath) {
 
   if (req.method === "HEAD") return res.end();
   createReadStream(filePath, { start, end: boundedEnd }).pipe(res);
+}
+
+async function prepareVideo(relativePath) {
+  const filePath = resolveMediaPath(relativePath);
+  const stat = await fs.stat(filePath);
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (!stat.isFile() || !videoExtensions.has(extension)) {
+    const error = new Error("Video not found");
+    error.status = 404;
+    throw error;
+  }
+
+  if (directPlayExtensions.has(extension)) {
+    return {
+      status: "ready",
+      directPlay: true,
+      url: `/api/video?path=${encodeURIComponent(relativePath)}`
+    };
+  }
+
+  const cache = getCacheInfo(filePath, stat);
+  if (await fileExists(cache.outputPath)) {
+    return {
+      status: "ready",
+      directPlay: false,
+      url: `/api/cache?key=${encodeURIComponent(cache.key)}`
+    };
+  }
+
+  const existing = transcodeJobs.get(cache.key);
+  if (existing) {
+    return {
+      status: existing.status,
+      directPlay: false,
+      key: cache.key,
+      error: existing.error || null
+    };
+  }
+
+  const job = {
+    status: "processing",
+    error: null,
+    startedAt: new Date().toISOString()
+  };
+  transcodeJobs.set(cache.key, job);
+  runFfmpegToCache(filePath, cache, job).catch((error) => {
+    job.status = "error";
+    job.error = error.message;
+  });
+
+  return {
+    status: "processing",
+    directPlay: false,
+    key: cache.key
+  };
+}
+
+function getCacheInfo(filePath, stat) {
+  const hash = crypto
+    .createHash("sha256")
+    .update(`${filePath}:${stat.size}:${stat.mtimeMs}`)
+    .digest("hex");
+  const key = hash.slice(0, 32);
+  return {
+    key,
+    outputPath: path.join(cacheDir, `${key}.mp4`),
+    tempPath: path.join(cacheDir, `${key}.tmp.mp4`)
+  };
+}
+
+async function runFfmpegToCache(inputPath, cache, job) {
+  await fs.mkdir(cacheDir, { recursive: true });
+  await fs.rm(cache.tempPath, { force: true }).catch(() => {});
+
+  const ffmpegArgs = [
+    "-hide_banner",
+    "-y",
+    "-loglevel",
+    "error",
+    "-i",
+    inputPath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-sn",
+    "-dn",
+    "-c:v",
+    "libx264",
+    "-preset",
+    process.env.FFMPEG_PRESET || "veryfast",
+    "-crf",
+    process.env.FFMPEG_CRF || "23",
+    "-c:a",
+    "aac",
+    "-b:a",
+    process.env.FFMPEG_AUDIO_BITRATE || "160k",
+    "-ac",
+    "2",
+    "-movflags",
+    "+faststart",
+    cache.tempPath
+  ];
+
+  const ffmpeg = spawn(process.env.FFMPEG_PATH || "ffmpeg", ffmpegArgs, {
+    windowsHide: true,
+    stdio: ["ignore", "ignore", "pipe"]
+  });
+
+  let stderr = "";
+  ffmpeg.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  ffmpeg.once("error", (error) => {
+    job.status = "error";
+    job.error = error.code === "ENOENT"
+      ? "ffmpeg is not installed or is not available in PATH"
+      : error.message;
+  });
+
+  ffmpeg.once("close", async (code) => {
+    if (job.status === "error") return;
+
+    if (code !== 0) {
+      job.status = "error";
+      job.error = stderr.trim() || `ffmpeg exited with code ${code}`;
+      await fs.rm(cache.tempPath, { force: true }).catch(() => {});
+      return;
+    }
+
+    await fs.rename(cache.tempPath, cache.outputPath);
+    job.status = "ready";
+    job.readyAt = new Date().toISOString();
+  });
+}
+
+async function serveCachedVideo(req, res, key) {
+  if (!/^[a-f0-9]{32}$/.test(key)) {
+    return sendText(res, 400, "Invalid cache key");
+  }
+
+  const filePath = path.join(cacheDir, `${key}.mp4`);
+  const stat = await fs.stat(filePath).catch(() => null);
+  if (!stat?.isFile()) {
+    return sendText(res, 404, "Cached video is not ready");
+  }
+
+  return streamFile(req, res, filePath, stat);
 }
 
 async function transcodeVideo(req, res, relativePath) {
@@ -368,6 +529,16 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === "/api/video" && (req.method === "GET" || req.method === "HEAD")) {
     return streamVideo(req, res, url.searchParams.get("path") || "");
+  }
+
+  if (url.pathname === "/api/prepare" && req.method === "POST") {
+    const body = await parseJsonBody(req);
+    const data = await prepareVideo(body.path || "");
+    return sendJson(res, 200, data);
+  }
+
+  if (url.pathname === "/api/cache" && (req.method === "GET" || req.method === "HEAD")) {
+    return serveCachedVideo(req, res, url.searchParams.get("key") || "");
   }
 
   if (url.pathname === "/api/transcode" && (req.method === "GET" || req.method === "HEAD")) {

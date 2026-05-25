@@ -87,6 +87,12 @@ p {
   background: var(--accent-dark);
 }
 
+.root-form button:disabled,
+.video-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .player-section {
   overflow: hidden;
   border: 1px solid var(--line);

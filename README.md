@@ -9,7 +9,7 @@ Small web client and Node.js backend for browsing a media folder and streaming v
 
 No npm dependencies are required.
 
-For `.mkv`, `.avi`, `.wmv`, and some `.mov` files, install `ffmpeg` so the server can transcode video and audio to a browser-friendly MP4 stream:
+For `.mkv`, `.avi`, `.wmv`, and some `.mov` files, install `ffmpeg` so the server can prepare a browser-friendly MP4 copy with AAC audio:
 
 ```bash
 sudo apt update
@@ -53,7 +53,7 @@ The browser lists folders plus these video extensions:
 ```
 
 Streaming supports HTTP byte ranges, so the browser can seek inside videos.
-MKV playback uses live transcoding through `ffmpeg`, because browsers often do not support the audio codecs commonly stored in MKV files.
+MKV playback is prepared through `ffmpeg` and cached in `.cache/transcoded`, because browsers often do not support the audio codecs commonly stored in MKV files. The first start can take a few minutes; after that the cached MP4 plays with duration, seeking, and pause support.
 
 ## API
 
@@ -61,6 +61,8 @@ MKV playback uses live transcoding through `ffmpeg`, because browsers often do n
 - `POST /api/root` with `{ "path": "..." }` sets the root folder.
 - `GET /api/browse?path=relative/path` returns folders and video files.
 - `GET /api/video?path=relative/path/file.mp4` streams the selected video.
-- `GET /api/transcode?path=relative/path/file.mkv` transcodes the selected video to MP4/AAC while streaming.
+- `POST /api/prepare` with `{ "path": "relative/path/file.mkv" }` prepares and caches a browser-compatible MP4.
+- `GET /api/cache?key=...` streams a prepared MP4 from cache.
+- `GET /api/transcode?path=relative/path/file.mkv` live-transcodes to MP4/AAC while streaming; kept as a fallback endpoint.
 
 The backend resolves every media path against the configured root and rejects attempts to access files outside it.
