@@ -53,7 +53,7 @@ The browser lists folders plus these video extensions:
 ```
 
 Streaming supports HTTP byte ranges, so the browser can seek inside videos.
-MKV playback is prepared through `ffmpeg` and cached in `.cache/transcoded`, because browsers often do not support the audio codecs commonly stored in MKV files. The first start can take a few minutes; after that the cached MP4 plays with duration, seeking, and pause support.
+MKV playback starts immediately through live `ffmpeg` transcoding. In parallel, the server prepares and caches a browser-friendly MP4 in `.cache/transcoded`; when it is ready, the client switches to the cached file so duration, seeking, and pause work normally.
 
 ## API
 

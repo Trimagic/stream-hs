@@ -9,6 +9,7 @@ const player = document.querySelector("#player");
 const nowPlaying = document.querySelector("#nowPlaying");
 
 let currentPath = "";
+let activePlaybackToken = 0;
 
 rootForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -126,7 +127,7 @@ function renderVideos(videos) {
       const button = document.createElement("button");
       button.className = "video-button";
       button.type = "button";
-      button.textContent = video.directPlay ? "Play" : "Prepare";
+      button.textContent = "Play";
       button.addEventListener("click", () => playVideo(video, button));
 
       row.append(name, meta, button);
@@ -136,33 +137,43 @@ function renderVideos(videos) {
 }
 
 async function playVideo(video, button) {
+  const playbackToken = ++activePlaybackToken;
+
   try {
     clearMessage();
     if (button) {
       button.disabled = true;
-      button.textContent = video.directPlay ? "Opening" : "Preparing";
+      button.textContent = "Opening";
     }
 
     const source = video.directPlay
       ? `/api/video?path=${encodeURIComponent(video.path)}`
-      : await prepareCachedVideo(video.path);
+      : `/api/transcode?path=${encodeURIComponent(video.path)}`;
 
     player.src = source;
     await player.play().catch(() => {
       showMessage("Browser blocked autoplay. Press play in the video player.");
     });
     nowPlaying.textContent = video.name;
+
+    if (!video.directPlay) {
+      prepareCachedVideo(video.path, playbackToken).catch((error) => {
+        if (playbackToken === activePlaybackToken) showMessage(error.message);
+      });
+    }
   } catch (error) {
     showMessage(error.message);
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = video.directPlay ? "Play" : "Play";
+      button.textContent = "Play";
     }
   }
 }
 
-async function prepareCachedVideo(path) {
+async function prepareCachedVideo(path, playbackToken) {
+  showMessage("Realtime playback started. Preparing seekable version in background.");
+
   for (;;) {
     const response = await fetch("/api/prepare", {
       method: "POST",
@@ -172,16 +183,40 @@ async function prepareCachedVideo(path) {
     const payload = await readJson(response);
 
     if (payload.status === "ready") {
-      return payload.url;
+      if (playbackToken === activePlaybackToken) {
+        await switchToPreparedVideo(payload.url);
+      }
+      return;
     }
 
     if (payload.status === "error") {
       throw new Error(payload.error || "Video conversion failed.");
     }
 
-    showMessage("Preparing browser-compatible video. First start can take a few minutes.");
     await delay(2500);
   }
+}
+
+async function switchToPreparedVideo(url) {
+  const resumeAt = Number.isFinite(player.currentTime) ? player.currentTime : 0;
+  const wasPaused = player.paused;
+
+  player.src = url;
+  player.load();
+
+  await new Promise((resolve) => {
+    player.addEventListener("loadedmetadata", resolve, { once: true });
+  });
+
+  if (resumeAt > 0 && Number.isFinite(player.duration)) {
+    player.currentTime = Math.min(resumeAt, Math.max(player.duration - 1, 0));
+  }
+
+  if (!wasPaused) {
+    await player.play().catch(() => {});
+  }
+
+  showMessage("Prepared version is ready. Duration, pause, and seeking should now work normally.");
 }
 
 function delay(ms) {
