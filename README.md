@@ -53,7 +53,7 @@ The browser lists folders plus these video extensions:
 ```
 
 Streaming supports HTTP byte ranges, so the browser can seek inside videos.
-MKV playback starts immediately through live `ffmpeg` transcoding. In parallel, the server prepares and caches a browser-friendly MP4 in `.cache/transcoded`; when it is ready, the client switches to the cached file so duration, seeking, and pause work normally.
+MKV playback starts immediately. TV browsers with native HLS support get an `.m3u8` stream from `.cache/hls`, which is more reliable for televisions than fragmented MP4. Browsers without native HLS fall back to live MP4 transcoding. In parallel, the server prepares and caches a browser-friendly MP4 in `.cache/transcoded`; when it is ready, the client switches to the cached file so duration, seeking, and pause work normally.
 
 ## API
 
@@ -62,6 +62,7 @@ MKV playback starts immediately through live `ffmpeg` transcoding. In parallel, 
 - `GET /api/browse?path=relative/path` returns folders and video files.
 - `GET /api/video?path=relative/path/file.mp4` streams the selected video.
 - `POST /api/prepare` with `{ "path": "relative/path/file.mkv" }` prepares and caches a browser-compatible MP4.
+- `POST /api/hls/start` with `{ "path": "relative/path/file.mkv" }` starts an HLS stream for native-HLS clients such as many TV browsers.
 - `GET /api/cache?key=...` streams a prepared MP4 from cache.
 - `GET /api/transcode?path=relative/path/file.mkv` live-transcodes to MP4/AAC while streaming; kept as a fallback endpoint.
 

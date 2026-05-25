@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, "public");
 const cacheDir = path.join(__dirname, ".cache", "transcoded");
+const hlsDir = path.join(__dirname, ".cache", "hls");
 const port = Number(process.env.PORT || 3000);
 
 const videoExtensions = new Set([
@@ -27,6 +28,8 @@ const mimeTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
+  [".m3u8", "application/vnd.apple.mpegurl"],
+  [".ts", "video/mp2t"],
   [".svg", "image/svg+xml"],
   [".png", "image/png"],
   [".jpg", "image/jpeg"],
@@ -46,6 +49,7 @@ const mimeTypes = new Map([
 const directPlayExtensions = new Set([".mp4", ".m4v", ".webm", ".ogv", ".ogg"]);
 const transcodeExtensions = new Set([".mkv", ".avi", ".wmv", ".mov"]);
 const transcodeJobs = new Map();
+const hlsJobs = new Map();
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
 function normalizeStartupRoot(args, envRoot) {
@@ -313,6 +317,66 @@ async function prepareVideo(relativePath) {
   };
 }
 
+async function startHlsVideo(relativePath) {
+  const filePath = resolveMediaPath(relativePath);
+  const stat = await fs.stat(filePath);
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (!stat.isFile() || !videoExtensions.has(extension)) {
+    const error = new Error("Video not found");
+    error.status = 404;
+    throw error;
+  }
+
+  if (directPlayExtensions.has(extension)) {
+    return {
+      status: "ready",
+      directPlay: true,
+      url: `/api/video?path=${encodeURIComponent(relativePath)}`
+    };
+  }
+
+  const cache = getCacheInfo(filePath, stat);
+  const playlistPath = path.join(hlsDir, cache.key, "index.m3u8");
+
+  if (await fileExists(playlistPath)) {
+    return {
+      status: "ready",
+      directPlay: false,
+      url: `/api/hls/${cache.key}/index.m3u8`
+    };
+  }
+
+  const existing = hlsJobs.get(cache.key);
+  if (existing) {
+    return {
+      status: existing.status,
+      directPlay: false,
+      key: cache.key,
+      url: existing.status === "ready" ? `/api/hls/${cache.key}/index.m3u8` : null,
+      error: existing.error || null
+    };
+  }
+
+  const job = {
+    status: "processing",
+    error: null,
+    startedAt: new Date().toISOString()
+  };
+  hlsJobs.set(cache.key, job);
+  runFfmpegToHls(filePath, cache.key, job).catch((error) => {
+    job.status = "error";
+    job.error = error.message;
+  });
+
+  return {
+    status: "processing",
+    directPlay: false,
+    key: cache.key,
+    url: null
+  };
+}
+
 function getCacheInfo(filePath, stat) {
   const hash = crypto
     .createHash("sha256")
@@ -324,6 +388,40 @@ function getCacheInfo(filePath, stat) {
     outputPath: path.join(cacheDir, `${key}.mp4`),
     tempPath: path.join(cacheDir, `${key}.tmp.mp4`)
   };
+}
+
+function browserVideoArgs() {
+  return [
+    "-c:v",
+    "libx264",
+    "-preset",
+    process.env.FFMPEG_PRESET || "veryfast",
+    "-crf",
+    process.env.FFMPEG_CRF || "23",
+    "-pix_fmt",
+    "yuv420p",
+    "-profile:v",
+    process.env.FFMPEG_PROFILE || "main",
+    "-level",
+    process.env.FFMPEG_LEVEL || "4.0",
+    "-g",
+    process.env.FFMPEG_GOP || "48",
+    "-keyint_min",
+    process.env.FFMPEG_GOP || "48",
+    "-sc_threshold",
+    "0"
+  ];
+}
+
+function browserAudioArgs() {
+  return [
+    "-c:a",
+    "aac",
+    "-b:a",
+    process.env.FFMPEG_AUDIO_BITRATE || "160k",
+    "-ac",
+    "2"
+  ];
 }
 
 async function runFfmpegToCache(inputPath, cache, job) {
@@ -343,18 +441,8 @@ async function runFfmpegToCache(inputPath, cache, job) {
     "0:a:0?",
     "-sn",
     "-dn",
-    "-c:v",
-    "libx264",
-    "-preset",
-    process.env.FFMPEG_PRESET || "veryfast",
-    "-crf",
-    process.env.FFMPEG_CRF || "23",
-    "-c:a",
-    "aac",
-    "-b:a",
-    process.env.FFMPEG_AUDIO_BITRATE || "160k",
-    "-ac",
-    "2",
+    ...browserVideoArgs(),
+    ...browserAudioArgs(),
     "-movflags",
     "+faststart",
     cache.tempPath
@@ -393,6 +481,84 @@ async function runFfmpegToCache(inputPath, cache, job) {
   });
 }
 
+async function runFfmpegToHls(inputPath, key, job) {
+  const outputDir = path.join(hlsDir, key);
+  await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const ffmpegArgs = [
+    "-hide_banner",
+    "-y",
+    "-loglevel",
+    "error",
+    "-i",
+    inputPath,
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-sn",
+    "-dn",
+    ...browserVideoArgs(),
+    ...browserAudioArgs(),
+    "-f",
+    "hls",
+    "-hls_time",
+    process.env.HLS_TIME || "4",
+    "-hls_playlist_type",
+    "event",
+    "-hls_flags",
+    "independent_segments",
+    "-hls_segment_filename",
+    path.join(outputDir, "segment_%05d.ts"),
+    path.join(outputDir, "index.m3u8")
+  ];
+
+  const ffmpeg = spawn(process.env.FFMPEG_PATH || "ffmpeg", ffmpegArgs, {
+    windowsHide: true,
+    stdio: ["ignore", "ignore", "pipe"]
+  });
+
+  let stderr = "";
+  ffmpeg.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  ffmpeg.once("error", (error) => {
+    job.status = "error";
+    job.error = error.code === "ENOENT"
+      ? "ffmpeg is not installed or is not available in PATH"
+      : error.message;
+  });
+
+  const readyTimer = setInterval(async () => {
+    if (job.status !== "processing") {
+      clearInterval(readyTimer);
+      return;
+    }
+
+    if (await fileExists(path.join(outputDir, "index.m3u8"))) {
+      job.status = "ready";
+      job.readyAt = new Date().toISOString();
+      clearInterval(readyTimer);
+    }
+  }, 500);
+
+  ffmpeg.once("close", async (code) => {
+    clearInterval(readyTimer);
+    if (job.status === "error") return;
+
+    if (code !== 0) {
+      job.status = "error";
+      job.error = stderr.trim() || `ffmpeg exited with code ${code}`;
+      return;
+    }
+
+    job.status = "ready";
+    job.completedAt = new Date().toISOString();
+  });
+}
+
 async function serveCachedVideo(req, res, key) {
   if (!/^[a-f0-9]{32}$/.test(key)) {
     return sendText(res, 400, "Invalid cache key");
@@ -405,6 +571,33 @@ async function serveCachedVideo(req, res, key) {
   }
 
   return streamFile(req, res, filePath, stat);
+}
+
+async function serveHls(req, res, pathname) {
+  const match = /^\/api\/hls\/([a-f0-9]{32})\/([^/]+)$/.exec(pathname);
+  if (!match) {
+    return sendText(res, 404, "HLS file not found");
+  }
+
+  const [, key, filename] = match;
+  if (!/^(index\.m3u8|segment_\d{5}\.ts)$/.test(filename)) {
+    return sendText(res, 400, "Invalid HLS file");
+  }
+
+  const filePath = path.join(hlsDir, key, filename);
+  const stat = await fs.stat(filePath).catch(() => null);
+  if (!stat?.isFile()) {
+    return sendText(res, 404, "HLS file is not ready");
+  }
+
+  res.writeHead(200, {
+    "content-length": stat.size,
+    "content-type": mimeTypes.get(path.extname(filePath).toLowerCase()) || "application/octet-stream",
+    "cache-control": filename.endsWith(".m3u8") ? "no-store" : "public, max-age=3600"
+  });
+
+  if (req.method === "HEAD") return res.end();
+  createReadStream(filePath).pipe(res);
 }
 
 async function transcodeVideo(req, res, relativePath) {
@@ -426,18 +619,8 @@ async function transcodeVideo(req, res, relativePath) {
     "0:a:0?",
     "-sn",
     "-dn",
-    "-c:v",
-    "libx264",
-    "-preset",
-    process.env.FFMPEG_PRESET || "veryfast",
-    "-crf",
-    process.env.FFMPEG_CRF || "23",
-    "-c:a",
-    "aac",
-    "-b:a",
-    process.env.FFMPEG_AUDIO_BITRATE || "160k",
-    "-ac",
-    "2",
+    ...browserVideoArgs(),
+    ...browserAudioArgs(),
     "-movflags",
     "frag_keyframe+empty_moov+default_base_moof",
     "-f",
@@ -512,6 +695,10 @@ async function serveStatic(req, res, pathname) {
 }
 
 async function handleApi(req, res, url) {
+  if (url.pathname.startsWith("/api/hls/") && (req.method === "GET" || req.method === "HEAD")) {
+    return serveHls(req, res, url.pathname);
+  }
+
   if (url.pathname === "/api/config" && req.method === "GET") {
     return sendJson(res, 200, { root: mediaRoot, configured: Boolean(mediaRoot) });
   }
@@ -534,6 +721,12 @@ async function handleApi(req, res, url) {
   if (url.pathname === "/api/prepare" && req.method === "POST") {
     const body = await parseJsonBody(req);
     const data = await prepareVideo(body.path || "");
+    return sendJson(res, 200, data);
+  }
+
+  if (url.pathname === "/api/hls/start" && req.method === "POST") {
+    const body = await parseJsonBody(req);
+    const data = await startHlsVideo(body.path || "");
     return sendJson(res, 200, data);
   }
 

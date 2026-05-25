@@ -148,7 +148,7 @@ async function playVideo(video, button) {
 
     const source = video.directPlay
       ? `/api/video?path=${encodeURIComponent(video.path)}`
-      : `/api/transcode?path=${encodeURIComponent(video.path)}`;
+      : await getLiveSource(video.path);
 
     player.src = source;
     await player.play().catch(() => {
@@ -195,6 +195,39 @@ async function prepareCachedVideo(path, playbackToken) {
 
     await delay(2500);
   }
+}
+
+async function getLiveSource(path) {
+  if (!canPlayHls()) {
+    return `/api/transcode?path=${encodeURIComponent(path)}`;
+  }
+
+  for (;;) {
+    const response = await fetch("/api/hls/start", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path })
+    });
+    const payload = await readJson(response);
+
+    if (payload.status === "ready") {
+      return payload.url;
+    }
+
+    if (payload.status === "error") {
+      throw new Error(payload.error || "HLS conversion failed.");
+    }
+
+    showMessage("Starting TV-compatible stream.");
+    await delay(800);
+  }
+}
+
+function canPlayHls() {
+  return Boolean(
+    player.canPlayType("application/vnd.apple.mpegurl") ||
+    player.canPlayType("application/x-mpegURL")
+  );
 }
 
 async function switchToPreparedVideo(url) {
