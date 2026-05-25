@@ -7,9 +7,18 @@ const videoList = document.querySelector("#videoList");
 const message = document.querySelector("#message");
 const player = document.querySelector("#player");
 const nowPlaying = document.querySelector("#nowPlaying");
+const playToggle = document.querySelector("#playToggle");
+const currentTimeLabel = document.querySelector("#currentTime");
+const seekSlider = document.querySelector("#seekSlider");
+const durationTimeLabel = document.querySelector("#durationTime");
+const muteToggle = document.querySelector("#muteToggle");
+const volumeSlider = document.querySelector("#volumeSlider");
 
 let currentPath = "";
 let activePlaybackToken = 0;
+let isSeeking = false;
+
+player.volume = Number(volumeSlider.value);
 
 rootForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -28,11 +37,63 @@ rootForm.addEventListener("submit", async (event) => {
     player.removeAttribute("src");
     player.load();
     nowPlaying.textContent = "Select a video";
+    updateControls();
     await loadFolder("");
   } catch (error) {
     showMessage(error.message);
   }
 });
+
+playToggle.addEventListener("click", () => {
+  if (!player.src) return;
+  if (player.paused) {
+    player.play().catch(() => showMessage("Browser blocked playback. Press play again."));
+  } else {
+    player.pause();
+  }
+});
+
+player.addEventListener("click", () => {
+  if (!player.src) return;
+  if (player.paused) {
+    player.play().catch(() => {});
+  } else {
+    player.pause();
+  }
+});
+
+muteToggle.addEventListener("click", () => {
+  player.muted = !player.muted;
+  updateVolumeControls();
+});
+
+volumeSlider.addEventListener("input", () => {
+  player.volume = Number(volumeSlider.value);
+  player.muted = player.volume === 0;
+  updateVolumeControls();
+});
+
+seekSlider.addEventListener("input", () => {
+  isSeeking = true;
+  currentTimeLabel.textContent = formatTime(sliderValueToTime());
+});
+
+seekSlider.addEventListener("change", () => {
+  const targetTime = sliderValueToTime();
+  if (canSeek()) {
+    player.currentTime = targetTime;
+  }
+  isSeeking = false;
+  updateControls();
+});
+
+player.addEventListener("play", updateControls);
+player.addEventListener("pause", updateControls);
+player.addEventListener("ended", updateControls);
+player.addEventListener("loadedmetadata", updateControls);
+player.addEventListener("durationchange", updateControls);
+player.addEventListener("timeupdate", updateControls);
+player.addEventListener("volumechange", updateVolumeControls);
 
 async function init() {
   try {
@@ -151,6 +212,7 @@ async function playVideo(video, button) {
       : await getLiveSource(video.path);
 
     player.src = source;
+    updateControls();
     await player.play().catch(() => {
       showMessage("Browser blocked autoplay. Press play in the video player.");
     });
@@ -252,6 +314,61 @@ async function switchToPreparedVideo(url) {
   showMessage("Prepared version is ready. Duration, pause, and seeking should now work normally.");
 }
 
+function updateControls() {
+  playToggle.textContent = player.paused ? "Play" : "Pause";
+
+  if (!canSeek()) {
+    seekSlider.disabled = true;
+    seekSlider.value = "0";
+    currentTimeLabel.textContent = formatTime(player.currentTime || 0);
+    durationTimeLabel.textContent = player.src ? "Live" : "0:00";
+    updateVolumeControls();
+    return;
+  }
+
+  seekSlider.disabled = false;
+  durationTimeLabel.textContent = formatTime(player.duration);
+  currentTimeLabel.textContent = formatTime(player.currentTime || 0);
+
+  if (!isSeeking) {
+    const progress = player.duration ? (player.currentTime / player.duration) * 1000 : 0;
+    seekSlider.value = String(Math.max(0, Math.min(1000, progress)));
+  }
+
+  updateVolumeControls();
+}
+
+function updateVolumeControls() {
+  muteToggle.textContent = player.muted || player.volume === 0 ? "Muted" : "Sound";
+  if (Number(volumeSlider.value) !== player.volume) {
+    volumeSlider.value = String(player.volume);
+  }
+}
+
+function canSeek() {
+  return Number.isFinite(player.duration) && player.duration > 0;
+}
+
+function sliderValueToTime() {
+  if (!canSeek()) return 0;
+  return (Number(seekSlider.value) / 1000) * player.duration;
+}
+
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const rest = total % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(rest).padStart(2, "0")}`;
+}
+
 function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
@@ -294,3 +411,4 @@ function formatSize(bytes) {
 }
 
 init();
+updateControls();

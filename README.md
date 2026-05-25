@@ -44,6 +44,8 @@ http://localhost:3000
 
 If you start the server without a root folder, enter the folder path in the web UI.
 
+The web player uses custom controls for play/pause, time, seeking, mute, and volume. During live MKV startup the duration can be unknown; after the cached MP4 is ready, the seek bar switches to normal time-based seeking.
+
 ## Supported video files
 
 The browser lists folders plus these video extensions:

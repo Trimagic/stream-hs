@@ -20,7 +20,15 @@
       </section>
 
       <section class="player-section" aria-label="Video player">
-        <video id="player" controls preload="metadata"></video>
+        <video id="player" preload="metadata" playsinline></video>
+        <div class="controls" aria-label="Player controls">
+          <button id="playToggle" class="icon-button" type="button" aria-label="Play or pause">Play</button>
+          <span id="currentTime" class="time-label">0:00</span>
+          <input id="seekSlider" class="seek-slider" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+          <span id="durationTime" class="time-label">Live</span>
+          <button id="muteToggle" class="icon-button" type="button" aria-label="Mute or unmute">Sound</button>
+          <input id="volumeSlider" class="volume-slider" type="range" min="0" max="1" value="1" step="0.01" aria-label="Volume">
+        </div>
         <div class="now-playing">
           <span>Now playing</span>
           <strong id="nowPlaying">Select a video</strong>

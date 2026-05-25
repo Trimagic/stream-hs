@@ -29,6 +29,12 @@ input {
   font: inherit;
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(22, 115, 106, 0.32);
+  outline-offset: 2px;
+}
+
 .shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -107,6 +113,55 @@ video {
   aspect-ratio: 16 / 9;
   max-height: 68vh;
   background: #0f1419;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: auto auto minmax(160px, 1fr) auto auto minmax(90px, 140px);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  background: #111820;
+  color: white;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.icon-button {
+  min-width: 82px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 10px 13px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.time-label {
+  min-width: 48px;
+  color: rgba(255, 255, 255, 0.84);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.seek-slider,
+.volume-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.seek-slider {
+  min-width: 0;
+}
+
+.seek-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .now-playing {
@@ -258,6 +313,30 @@ video {
   .now-playing {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .controls {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .seek-slider {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  #playToggle,
+  #currentTime,
+  #durationTime {
+    grid-row: 2;
+  }
+
+  #muteToggle,
+  #volumeSlider {
+    grid-row: 3;
+  }
+
+  #volumeSlider {
+    grid-column: 2 / -1;
   }
 
   .video-meta {
