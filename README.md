@@ -57,6 +57,12 @@ The browser lists folders plus these video extensions:
 Streaming supports HTTP byte ranges, so the browser can seek inside directly playable videos.
 MKV playback starts immediately. TV browsers with native HLS support get a stable `.m3u8` VOD playlist from `.cache/hls/vod`; the server prepares the first few `.ts` segments before returning the playlist, then generates later segments in small windows with `ffmpeg` on demand and caches them. Browsers without native HLS fall back to live MP4 transcoding with stream restart on seek.
 
+Useful tuning environment variables:
+
+- `HLS_INITIAL_SEGMENTS` controls how many segments are generated before playback starts. Default: `6`.
+- `HLS_PREWARM_SEGMENTS` controls how many upcoming segments are kept warm in the background. Default: `18`.
+- `HLS_CHUNK_SEGMENTS` controls how many segments one ffmpeg process generates at once. Default: `6`.
+
 ## API
 
 - `GET /api/config` returns current root configuration.

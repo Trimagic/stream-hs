@@ -54,7 +54,8 @@ const hlsJobs = new Map();
 const hlsVodSessions = new Map();
 const hlsSegmentJobs = new Map();
 const metadataCache = new Map();
-const hlsPrewarmSegments = Number(process.env.HLS_PREWARM_SEGMENTS || 3);
+const hlsInitialSegments = Number(process.env.HLS_INITIAL_SEGMENTS || 6);
+const hlsPrewarmSegments = Number(process.env.HLS_PREWARM_SEGMENTS || 18);
 const hlsChunkSegments = Number(process.env.HLS_CHUNK_SEGMENTS || 6);
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
@@ -500,7 +501,10 @@ async function startHlsVod(relativePath) {
 
   hlsVodSessions.set(cache.key, session);
   await fs.mkdir(session.outputDir, { recursive: true });
-  await prewarmHlsVodSegments(session, 0);
+  await prewarmHlsVodSegments(session, 0, hlsInitialSegments);
+  prewarmHlsVodSegments(session, hlsInitialSegments, hlsPrewarmSegments).catch((error) => {
+    console.error(`HLS background prewarm failed: ${error.message}`);
+  });
 
   return {
     status: "ready",
@@ -770,7 +774,7 @@ async function serveHlsVod(req, res, pathname) {
   }
 
   const segmentPath = await ensureHlsVodSegment(session, segmentIndex);
-  prewarmHlsVodSegments(session, segmentIndex + 1).catch((error) => {
+  prewarmHlsVodSegments(session, segmentIndex + 1, hlsPrewarmSegments).catch((error) => {
     console.error(`HLS prewarm failed: ${error.message}`);
   });
   const stat = await fs.stat(segmentPath);
@@ -797,7 +801,7 @@ function sendHlsVodPlaylist(res, session) {
   for (let index = 0; index < session.segmentCount; index += 1) {
     const start = index * session.segmentDuration;
     const duration = Math.min(session.segmentDuration, session.duration - start);
-    if (index > 0) lines.push("#EXT-X-DISCONTINUITY");
+    if (index > 0 && index % hlsChunkSegments === 0) lines.push("#EXT-X-DISCONTINUITY");
     lines.push(`#EXTINF:${duration.toFixed(3)},`);
     lines.push(`segment_${index}.ts`);
   }
@@ -812,8 +816,8 @@ function sendHlsVodPlaylist(res, session) {
   res.end(body);
 }
 
-async function prewarmHlsVodSegments(session, startIndex) {
-  const endIndex = Math.min(session.segmentCount, startIndex + hlsPrewarmSegments);
+async function prewarmHlsVodSegments(session, startIndex, count) {
+  const endIndex = Math.min(session.segmentCount, startIndex + count);
   for (let index = startIndex; index < endIndex; index += 1) {
     await ensureHlsVodSegment(session, index);
   }
@@ -882,7 +886,7 @@ async function generateHlsVodSegmentChunk(session, chunkStart) {
     "-segment_format",
     "mpegts",
     "-reset_timestamps",
-    "1",
+    "0",
     "-segment_start_number",
     String(chunkStart),
     path.join(tempDir, "segment_%d.ts")
