@@ -20,6 +20,7 @@ const playerSection = document.querySelector(".player-section");
 let currentPath = "";
 let activePlaybackToken = 0;
 let isSeeking = false;
+let controlsIdleTimer = null;
 let expectedDuration = null;
 let playbackMode = "idle";
 let currentVideoPath = "";
@@ -64,6 +65,11 @@ playToggle.addEventListener("click", () => {
 centerPlayToggle.addEventListener("click", () => {
   togglePlayback();
 });
+
+playerSection.addEventListener("mousemove", showPlayerChrome);
+playerSection.addEventListener("pointermove", showPlayerChrome);
+playerSection.addEventListener("touchstart", showPlayerChrome, { passive: true });
+playerSection.addEventListener("focusin", showPlayerChrome);
 
 function togglePlayback() {
   if (!player.src) return;
@@ -126,7 +132,9 @@ seekSlider.addEventListener("change", () => {
 });
 
 player.addEventListener("play", updateControls);
+player.addEventListener("play", showPlayerChrome);
 player.addEventListener("pause", updateControls);
+player.addEventListener("pause", () => playerSection.classList.remove("is-idle"));
 player.addEventListener("ended", updateControls);
 player.addEventListener("loadedmetadata", updateControls);
 player.addEventListener("durationchange", updateControls);
@@ -388,6 +396,17 @@ function updateVolumeControls() {
 function canSeek() {
   if (playbackMode === "live") return Boolean(expectedDuration);
   return playbackMode === "file" && Number.isFinite(player.duration) && player.duration > 0;
+}
+
+function showPlayerChrome() {
+  playerSection.classList.remove("is-idle");
+  window.clearTimeout(controlsIdleTimer);
+
+  if (!player.src || player.paused) return;
+
+  controlsIdleTimer = window.setTimeout(() => {
+    if (!player.paused) playerSection.classList.add("is-idle");
+  }, 2200);
 }
 
 async function enterFullscreen() {
