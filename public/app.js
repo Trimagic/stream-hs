@@ -19,6 +19,8 @@ let activePlaybackToken = 0;
 let isSeeking = false;
 let expectedDuration = null;
 let playbackMode = "idle";
+let currentVideoPath = "";
+let liveStartOffset = 0;
 
 player.volume = Number(volumeSlider.value);
 
@@ -41,6 +43,8 @@ rootForm.addEventListener("submit", async (event) => {
     nowPlaying.textContent = "Select a video";
     expectedDuration = null;
     playbackMode = "idle";
+    currentVideoPath = "";
+    liveStartOffset = 0;
     updateControls();
     await loadFolder("");
   } catch (error) {
@@ -84,8 +88,10 @@ seekSlider.addEventListener("input", () => {
 
 seekSlider.addEventListener("change", () => {
   const targetTime = sliderValueToTime();
-  if (canSeek()) {
+  if (playbackMode === "file" && canSeek()) {
     player.currentTime = targetTime;
+  } else if (playbackMode === "live" && expectedDuration && currentVideoPath) {
+    seekLive(targetTime);
   }
   isSeeking = false;
   updateControls();
@@ -205,6 +211,8 @@ async function playVideo(video, button) {
   const playbackToken = ++activePlaybackToken;
   expectedDuration = null;
   playbackMode = video.directPlay ? "file" : "live";
+  currentVideoPath = video.path;
+  liveStartOffset = 0;
 
   try {
     clearMessage();
@@ -215,7 +223,7 @@ async function playVideo(video, button) {
 
     const source = video.directPlay
       ? `/api/video?path=${encodeURIComponent(video.path)}`
-      : await getLiveSource(video.path);
+      : await getLiveSource(video.path, 0);
 
     loadVideoMetadata(video.path, playbackToken);
     player.src = source;
@@ -225,11 +233,7 @@ async function playVideo(video, button) {
     });
     nowPlaying.textContent = video.name;
 
-    if (!video.directPlay) {
-      prepareCachedVideo(video.path, playbackToken).catch((error) => {
-        if (playbackToken === activePlaybackToken) showMessage(error.message);
-      });
-    }
+    if (!video.directPlay) showMessage("Live stream started. Seek restarts the stream from the selected time.");
   } catch (error) {
     showMessage(error.message);
   } finally {
@@ -240,42 +244,16 @@ async function playVideo(video, button) {
   }
 }
 
-async function prepareCachedVideo(path, playbackToken) {
-  showMessage("Realtime playback started. Preparing seekable version in background.");
-
-  for (;;) {
-    const response = await fetch("/api/prepare", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path })
-    });
-    const payload = await readJson(response);
-
-    if (payload.status === "ready") {
-      if (playbackToken === activePlaybackToken) {
-        await switchToPreparedVideo(payload.url);
-      }
-      return;
-    }
-
-    if (payload.status === "error") {
-      throw new Error(payload.error || "Video conversion failed.");
-    }
-
-    await delay(2500);
-  }
-}
-
-async function getLiveSource(path) {
+async function getLiveSource(path, start = 0) {
   if (!canPlayHls()) {
-    return `/api/transcode?path=${encodeURIComponent(path)}`;
+    return `/api/transcode?path=${encodeURIComponent(path)}&start=${encodeURIComponent(Math.floor(start))}`;
   }
 
   for (;;) {
     const response = await fetch("/api/hls/start", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path })
+      body: JSON.stringify({ path, start: Math.floor(start) })
     });
     const payload = await readJson(response);
 
@@ -299,29 +277,6 @@ function canPlayHls() {
   );
 }
 
-async function switchToPreparedVideo(url) {
-  const resumeAt = Number.isFinite(player.currentTime) ? player.currentTime : 0;
-  const wasPaused = player.paused;
-  playbackMode = "file";
-
-  player.src = url;
-  player.load();
-
-  await new Promise((resolve) => {
-    player.addEventListener("loadedmetadata", resolve, { once: true });
-  });
-
-  if (resumeAt > 0 && Number.isFinite(player.duration)) {
-    player.currentTime = Math.min(resumeAt, Math.max(player.duration - 1, 0));
-  }
-
-  if (!wasPaused) {
-    await player.play().catch(() => {});
-  }
-
-  showMessage("Prepared version is ready. Duration, pause, and seeking should now work normally.");
-}
-
 async function loadVideoMetadata(path, playbackToken) {
   try {
     const response = await fetch(`/api/metadata?path=${encodeURIComponent(path)}`);
@@ -335,6 +290,30 @@ async function loadVideoMetadata(path, playbackToken) {
   }
 }
 
+async function seekLive(targetTime) {
+  const playbackToken = ++activePlaybackToken;
+  const wasPaused = player.paused;
+  const maxStart = Math.max((expectedDuration || targetTime) - 2, 0);
+  const boundedTime = Math.max(0, Math.min(targetTime, maxStart));
+
+  try {
+    showMessage(`Seeking to ${formatTime(boundedTime)}.`);
+    liveStartOffset = boundedTime;
+    const source = await getLiveSource(currentVideoPath, boundedTime);
+    if (playbackToken !== activePlaybackToken) return;
+
+    player.src = source;
+    player.load();
+    updateControls();
+
+    if (!wasPaused) {
+      await player.play().catch(() => showMessage("Browser blocked playback after seek. Press play again."));
+    }
+  } catch (error) {
+    if (playbackToken === activePlaybackToken) showMessage(error.message);
+  }
+}
+
 function updateControls() {
   playToggle.textContent = player.paused ? "Play" : "Pause";
   const visibleDuration = getVisibleDuration();
@@ -342,7 +321,7 @@ function updateControls() {
   if (!canSeek()) {
     seekSlider.disabled = true;
     seekSlider.value = "0";
-    currentTimeLabel.textContent = formatTime(player.currentTime || 0);
+    currentTimeLabel.textContent = formatTime(getVisibleCurrentTime());
     durationTimeLabel.textContent = visibleDuration ? formatTime(visibleDuration) : player.src ? "Live" : "0:00";
     updateVolumeControls();
     return;
@@ -350,10 +329,10 @@ function updateControls() {
 
   seekSlider.disabled = false;
   durationTimeLabel.textContent = formatTime(visibleDuration || player.duration);
-  currentTimeLabel.textContent = formatTime(player.currentTime || 0);
+  currentTimeLabel.textContent = formatTime(getVisibleCurrentTime());
 
   if (!isSeeking) {
-    const progress = player.duration ? (player.currentTime / player.duration) * 1000 : 0;
+    const progress = visibleDuration ? (getVisibleCurrentTime() / visibleDuration) * 1000 : 0;
     seekSlider.value = String(Math.max(0, Math.min(1000, progress)));
   }
 
@@ -368,6 +347,7 @@ function updateVolumeControls() {
 }
 
 function canSeek() {
+  if (playbackMode === "live") return Boolean(expectedDuration);
   return playbackMode === "file" && Number.isFinite(player.duration) && player.duration > 0;
 }
 
@@ -377,9 +357,16 @@ function getVisibleDuration() {
   return expectedDuration;
 }
 
+function getVisibleCurrentTime() {
+  if (playbackMode === "live") {
+    return liveStartOffset + (player.currentTime || 0);
+  }
+  return player.currentTime || 0;
+}
+
 function sliderValueToTime() {
   if (!canSeek()) return 0;
-  return (Number(seekSlider.value) / 1000) * player.duration;
+  return (Number(seekSlider.value) / 1000) * getVisibleDuration();
 }
 
 function formatTime(seconds) {

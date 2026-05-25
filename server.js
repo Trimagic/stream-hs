@@ -392,10 +392,11 @@ function formatDuration(seconds) {
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
-async function startHlsVideo(relativePath) {
+async function startHlsVideo(relativePath, startSeconds = 0) {
   const filePath = resolveMediaPath(relativePath);
   const stat = await fs.stat(filePath);
   const extension = path.extname(filePath).toLowerCase();
+  const start = normalizeStartSeconds(startSeconds);
 
   if (!stat.isFile() || !videoExtensions.has(extension)) {
     const error = new Error("Video not found");
@@ -412,23 +413,26 @@ async function startHlsVideo(relativePath) {
   }
 
   const cache = getCacheInfo(filePath, stat);
-  const playlistPath = path.join(hlsDir, cache.key, "index.m3u8");
+  const hlsKey = getStreamKey(cache.key, start);
+  const playlistPath = path.join(hlsDir, hlsKey, "index.m3u8");
 
   if (await fileExists(playlistPath)) {
     return {
       status: "ready",
       directPlay: false,
-      url: `/api/hls/${cache.key}/index.m3u8`
+      start,
+      url: `/api/hls/${hlsKey}/index.m3u8`
     };
   }
 
-  const existing = hlsJobs.get(cache.key);
+  const existing = hlsJobs.get(hlsKey);
   if (existing) {
     return {
       status: existing.status,
       directPlay: false,
-      key: cache.key,
-      url: existing.status === "ready" ? `/api/hls/${cache.key}/index.m3u8` : null,
+      key: hlsKey,
+      start,
+      url: existing.status === "ready" ? `/api/hls/${hlsKey}/index.m3u8` : null,
       error: existing.error || null
     };
   }
@@ -438,8 +442,8 @@ async function startHlsVideo(relativePath) {
     error: null,
     startedAt: new Date().toISOString()
   };
-  hlsJobs.set(cache.key, job);
-  runFfmpegToHls(filePath, cache.key, job).catch((error) => {
+  hlsJobs.set(hlsKey, job);
+  runFfmpegToHls(filePath, hlsKey, job, start).catch((error) => {
     job.status = "error";
     job.error = error.message;
   });
@@ -447,9 +451,24 @@ async function startHlsVideo(relativePath) {
   return {
     status: "processing",
     directPlay: false,
-    key: cache.key,
+    key: hlsKey,
+    start,
     url: null
   };
+}
+
+function normalizeStartSeconds(value) {
+  const start = Number(value);
+  if (!Number.isFinite(start) || start < 0) return 0;
+  return Math.floor(start);
+}
+
+function getStreamKey(cacheKey, startSeconds) {
+  return crypto
+    .createHash("sha256")
+    .update(`${cacheKey}:start:${normalizeStartSeconds(startSeconds)}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 function getCacheInfo(filePath, stat) {
@@ -556,7 +575,7 @@ async function runFfmpegToCache(inputPath, cache, job) {
   });
 }
 
-async function runFfmpegToHls(inputPath, key, job) {
+async function runFfmpegToHls(inputPath, key, job, startSeconds = 0) {
   const outputDir = path.join(hlsDir, key);
   await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
   await fs.mkdir(outputDir, { recursive: true });
@@ -566,6 +585,7 @@ async function runFfmpegToHls(inputPath, key, job) {
     "-y",
     "-loglevel",
     "error",
+    ...(startSeconds > 0 ? ["-ss", String(startSeconds)] : []),
     "-i",
     inputPath,
     "-map",
@@ -675,9 +695,10 @@ async function serveHls(req, res, pathname) {
   createReadStream(filePath).pipe(res);
 }
 
-async function transcodeVideo(req, res, relativePath) {
+async function transcodeVideo(req, res, relativePath, startSeconds = 0) {
   const filePath = resolveMediaPath(relativePath);
   const stat = await fs.stat(filePath);
+  const start = normalizeStartSeconds(startSeconds);
   if (!stat.isFile() || !videoExtensions.has(path.extname(filePath).toLowerCase())) {
     return sendText(res, 404, "Video not found");
   }
@@ -686,6 +707,7 @@ async function transcodeVideo(req, res, relativePath) {
     "-hide_banner",
     "-loglevel",
     "error",
+    ...(start > 0 ? ["-ss", String(start)] : []),
     "-i",
     filePath,
     "-map",
@@ -806,7 +828,7 @@ async function handleApi(req, res, url) {
 
   if (url.pathname === "/api/hls/start" && req.method === "POST") {
     const body = await parseJsonBody(req);
-    const data = await startHlsVideo(body.path || "");
+    const data = await startHlsVideo(body.path || "", body.start || 0);
     return sendJson(res, 200, data);
   }
 
@@ -815,7 +837,7 @@ async function handleApi(req, res, url) {
   }
 
   if (url.pathname === "/api/transcode" && (req.method === "GET" || req.method === "HEAD")) {
-    return transcodeVideo(req, res, url.searchParams.get("path") || "");
+    return transcodeVideo(req, res, url.searchParams.get("path") || "", url.searchParams.get("start") || 0);
   }
 
   return sendJson(res, 404, { error: "API route not found" });
