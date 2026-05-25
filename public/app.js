@@ -21,6 +21,7 @@ let expectedDuration = null;
 let playbackMode = "idle";
 let currentVideoPath = "";
 let liveStartOffset = 0;
+let liveSeekMode = "none";
 
 player.volume = Number(volumeSlider.value);
 
@@ -45,6 +46,7 @@ rootForm.addEventListener("submit", async (event) => {
     playbackMode = "idle";
     currentVideoPath = "";
     liveStartOffset = 0;
+    liveSeekMode = "none";
     updateControls();
     await loadFolder("");
   } catch (error) {
@@ -89,6 +91,8 @@ seekSlider.addEventListener("input", () => {
 seekSlider.addEventListener("change", () => {
   const targetTime = sliderValueToTime();
   if (playbackMode === "file" && canSeek()) {
+    player.currentTime = targetTime;
+  } else if (playbackMode === "live" && liveSeekMode === "native" && canSeek()) {
     player.currentTime = targetTime;
   } else if (playbackMode === "live" && expectedDuration && currentVideoPath) {
     seekLive(targetTime);
@@ -213,6 +217,7 @@ async function playVideo(video, button) {
   playbackMode = video.directPlay ? "file" : "live";
   currentVideoPath = video.path;
   liveStartOffset = 0;
+  liveSeekMode = video.directPlay ? "none" : "restart";
 
   try {
     clearMessage();
@@ -233,7 +238,12 @@ async function playVideo(video, button) {
     });
     nowPlaying.textContent = video.name;
 
-    if (!video.directPlay) showMessage("Live stream started. Seek restarts the stream from the selected time.");
+    if (!video.directPlay) {
+      const seekText = liveSeekMode === "native"
+        ? "Live HLS started. TV player can seek through generated segments."
+        : "Live stream started. Seek restarts the stream from the selected time.";
+      showMessage(seekText);
+    }
   } catch (error) {
     showMessage(error.message);
   } finally {
@@ -246,28 +256,19 @@ async function playVideo(video, button) {
 
 async function getLiveSource(path, start = 0) {
   if (!canPlayHls()) {
+    liveSeekMode = "restart";
     return `/api/transcode?path=${encodeURIComponent(path)}&start=${encodeURIComponent(Math.floor(start))}`;
   }
 
-  for (;;) {
-    const response = await fetch("/api/hls/start", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ path, start: Math.floor(start) })
-    });
-    const payload = await readJson(response);
-
-    if (payload.status === "ready") {
-      return payload.url;
-    }
-
-    if (payload.status === "error") {
-      throw new Error(payload.error || "HLS conversion failed.");
-    }
-
-    showMessage("Starting TV-compatible stream.");
-    await delay(800);
-  }
+  liveSeekMode = "native";
+  const response = await fetch("/api/hls/vod/start", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path })
+  });
+  const payload = await readJson(response);
+  expectedDuration = Number.isFinite(payload.duration) ? payload.duration : expectedDuration;
+  return payload.url;
 }
 
 function canPlayHls() {
@@ -358,7 +359,7 @@ function getVisibleDuration() {
 }
 
 function getVisibleCurrentTime() {
-  if (playbackMode === "live") {
+  if (playbackMode === "live" && liveSeekMode === "restart") {
     return liveStartOffset + (player.currentTime || 0);
   }
   return player.currentTime || 0;

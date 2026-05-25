@@ -51,6 +51,8 @@ const transcodeExtensions = new Set([".mkv", ".avi", ".wmv", ".mov"]);
 const cacheVersion = "2026-05-25-duration-metadata-v1";
 const transcodeJobs = new Map();
 const hlsJobs = new Map();
+const hlsVodSessions = new Map();
+const hlsSegmentJobs = new Map();
 const metadataCache = new Map();
 let mediaRoot = normalizeStartupRoot(process.argv.slice(2), process.env.MEDIA_ROOT);
 
@@ -457,6 +459,54 @@ async function startHlsVideo(relativePath, startSeconds = 0) {
   };
 }
 
+async function startHlsVod(relativePath) {
+  const filePath = resolveMediaPath(relativePath);
+  const stat = await fs.stat(filePath);
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (!stat.isFile() || !videoExtensions.has(extension)) {
+    const error = new Error("Video not found");
+    error.status = 404;
+    throw error;
+  }
+
+  if (directPlayExtensions.has(extension)) {
+    return {
+      status: "ready",
+      directPlay: true,
+      url: `/api/video?path=${encodeURIComponent(relativePath)}`
+    };
+  }
+
+  const cache = getCacheInfo(filePath, stat);
+  const duration = (await getVideoMetadata(relativePath)).duration;
+  if (!duration) {
+    const error = new Error("Could not detect video duration with ffprobe");
+    error.status = 500;
+    throw error;
+  }
+
+  const segmentDuration = Number(process.env.HLS_TIME || 4);
+  const session = {
+    key: cache.key,
+    filePath,
+    duration,
+    segmentDuration,
+    segmentCount: Math.ceil(duration / segmentDuration),
+    outputDir: path.join(hlsDir, "vod", cache.key)
+  };
+
+  hlsVodSessions.set(cache.key, session);
+  await fs.mkdir(session.outputDir, { recursive: true });
+
+  return {
+    status: "ready",
+    directPlay: false,
+    duration,
+    url: `/api/hls/vod/${cache.key}/index.m3u8`
+  };
+}
+
 function normalizeStartSeconds(value) {
   const start = Number(value);
   if (!Number.isFinite(start) || start < 0) return 0;
@@ -695,6 +745,142 @@ async function serveHls(req, res, pathname) {
   createReadStream(filePath).pipe(res);
 }
 
+async function serveHlsVod(req, res, pathname) {
+  const match = /^\/api\/hls\/vod\/([a-f0-9]{32})\/(index\.m3u8|segment_(\d+)\.ts)$/.exec(pathname);
+  if (!match) {
+    return sendText(res, 404, "HLS VOD file not found");
+  }
+
+  const [, key, filename, segmentIndexText] = match;
+  const session = hlsVodSessions.get(key);
+  if (!session) {
+    return sendText(res, 404, "HLS VOD session not found. Start the video again.");
+  }
+
+  if (filename === "index.m3u8") {
+    return sendHlsVodPlaylist(res, session);
+  }
+
+  const segmentIndex = Number(segmentIndexText);
+  if (!Number.isInteger(segmentIndex) || segmentIndex < 0 || segmentIndex >= session.segmentCount) {
+    return sendText(res, 404, "HLS segment not found");
+  }
+
+  const segmentPath = await ensureHlsVodSegment(session, segmentIndex);
+  const stat = await fs.stat(segmentPath);
+
+  res.writeHead(200, {
+    "content-length": stat.size,
+    "content-type": "video/mp2t",
+    "cache-control": "public, max-age=86400"
+  });
+
+  if (req.method === "HEAD") return res.end();
+  createReadStream(segmentPath).pipe(res);
+}
+
+function sendHlsVodPlaylist(res, session) {
+  const lines = [
+    "#EXTM3U",
+    "#EXT-X-VERSION:3",
+    `#EXT-X-TARGETDURATION:${Math.ceil(session.segmentDuration)}`,
+    "#EXT-X-MEDIA-SEQUENCE:0",
+    "#EXT-X-PLAYLIST-TYPE:VOD"
+  ];
+
+  for (let index = 0; index < session.segmentCount; index += 1) {
+    const start = index * session.segmentDuration;
+    const duration = Math.min(session.segmentDuration, session.duration - start);
+    lines.push(`#EXTINF:${duration.toFixed(3)},`);
+    lines.push(`segment_${index}.ts`);
+  }
+
+  lines.push("#EXT-X-ENDLIST", "");
+  const body = lines.join("\n");
+  res.writeHead(200, {
+    "content-length": Buffer.byteLength(body),
+    "content-type": "application/vnd.apple.mpegurl",
+    "cache-control": "no-store"
+  });
+  res.end(body);
+}
+
+async function ensureHlsVodSegment(session, segmentIndex) {
+  const segmentPath = path.join(session.outputDir, `segment_${segmentIndex}.ts`);
+  if (await fileExists(segmentPath)) return segmentPath;
+
+  const jobKey = `${session.key}:${segmentIndex}`;
+  const existing = hlsSegmentJobs.get(jobKey);
+  if (existing) return existing;
+
+  const job = generateHlsVodSegment(session, segmentIndex)
+    .finally(() => hlsSegmentJobs.delete(jobKey));
+  hlsSegmentJobs.set(jobKey, job);
+  return job;
+}
+
+async function generateHlsVodSegment(session, segmentIndex) {
+  await fs.mkdir(session.outputDir, { recursive: true });
+  const segmentPath = path.join(session.outputDir, `segment_${segmentIndex}.ts`);
+  const tempPath = path.join(session.outputDir, `segment_${segmentIndex}.tmp.ts`);
+  const start = segmentIndex * session.segmentDuration;
+  const duration = Math.min(session.segmentDuration, session.duration - start);
+
+  await fs.rm(tempPath, { force: true }).catch(() => {});
+
+  const args = [
+    "-hide_banner",
+    "-y",
+    "-loglevel",
+    "error",
+    "-ss",
+    String(start),
+    "-i",
+    session.filePath,
+    "-t",
+    String(duration),
+    "-map",
+    "0:v:0",
+    "-map",
+    "0:a:0?",
+    "-sn",
+    "-dn",
+    ...browserVideoArgs(),
+    ...browserAudioArgs(),
+    "-mpegts_flags",
+    "+initial_discontinuity",
+    "-f",
+    "mpegts",
+    tempPath
+  ];
+
+  await runFfmpegFile(args);
+  await fs.rename(tempPath, segmentPath);
+  return segmentPath;
+}
+
+function runFfmpegFile(args) {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn(process.env.FFMPEG_PATH || "ffmpeg", args, {
+      windowsHide: true,
+      stdio: ["ignore", "ignore", "pipe"]
+    });
+
+    let stderr = "";
+    ffmpeg.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    ffmpeg.once("error", reject);
+    ffmpeg.once("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`));
+    });
+  });
+}
+
 async function transcodeVideo(req, res, relativePath, startSeconds = 0) {
   const filePath = resolveMediaPath(relativePath);
   const stat = await fs.stat(filePath);
@@ -792,6 +978,10 @@ async function serveStatic(req, res, pathname) {
 }
 
 async function handleApi(req, res, url) {
+  if (url.pathname.startsWith("/api/hls/vod/") && (req.method === "GET" || req.method === "HEAD")) {
+    return serveHlsVod(req, res, url.pathname);
+  }
+
   if (url.pathname.startsWith("/api/hls/") && (req.method === "GET" || req.method === "HEAD")) {
     return serveHls(req, res, url.pathname);
   }
@@ -829,6 +1019,12 @@ async function handleApi(req, res, url) {
   if (url.pathname === "/api/hls/start" && req.method === "POST") {
     const body = await parseJsonBody(req);
     const data = await startHlsVideo(body.path || "", body.start || 0);
+    return sendJson(res, 200, data);
+  }
+
+  if (url.pathname === "/api/hls/vod/start" && req.method === "POST") {
+    const body = await parseJsonBody(req);
+    const data = await startHlsVod(body.path || "");
     return sendJson(res, 200, data);
   }
 

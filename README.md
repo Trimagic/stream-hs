@@ -44,7 +44,7 @@ http://localhost:3000
 
 If you start the server without a root folder, enter the folder path in the web UI.
 
-The web player uses custom controls for play/pause, time, seeking, mute, and volume. For MKV live playback, seeking restarts the stream from the selected time instead of waiting for a full MP4 copy.
+The web player uses custom controls for play/pause, time, seeking, mute, and volume. For MKV on native-HLS clients such as many TVs, seeking uses a stable progressive HLS playlist and generates missing segments on demand.
 
 ## Supported video files
 
@@ -55,7 +55,7 @@ The browser lists folders plus these video extensions:
 ```
 
 Streaming supports HTTP byte ranges, so the browser can seek inside directly playable videos.
-MKV playback starts immediately. TV browsers with native HLS support get an `.m3u8` stream from `.cache/hls`, which is more reliable for televisions than fragmented MP4. Browsers without native HLS fall back to live MP4 transcoding. The custom seek bar uses `ffprobe` for the real episode duration and restarts `ffmpeg` from the selected time when seeking.
+MKV playback starts immediately. TV browsers with native HLS support get a stable `.m3u8` VOD playlist from `.cache/hls/vod`; each requested `.ts` segment is generated with `ffmpeg` on demand and cached. Browsers without native HLS fall back to live MP4 transcoding with stream restart on seek.
 
 ## API
 
@@ -64,6 +64,7 @@ MKV playback starts immediately. TV browsers with native HLS support get an `.m3
 - `GET /api/browse?path=relative/path` returns folders and video files.
 - `GET /api/video?path=relative/path/file.mp4` streams the selected video.
 - `GET /api/metadata?path=relative/path/file.mkv` returns real video duration from `ffprobe`.
+- `POST /api/hls/vod/start` with `{ "path": "relative/path/file.mkv" }` starts a progressive HLS VOD session for native-HLS clients.
 - `POST /api/hls/start` with `{ "path": "relative/path/file.mkv", "start": 1200 }` starts an HLS stream from the selected second.
 - `GET /api/transcode?path=relative/path/file.mkv&start=1200` live-transcodes to MP4/AAC from the selected second; kept as a fallback endpoint.
 
