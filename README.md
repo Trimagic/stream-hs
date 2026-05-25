@@ -44,7 +44,7 @@ http://localhost:3000
 
 If you start the server without a root folder, enter the folder path in the web UI.
 
-The web player uses custom controls for play/pause, time, seeking, mute, and volume. For MKV on native-HLS clients such as many TVs, seeking uses a stable progressive HLS playlist and generates missing segments on demand.
+The web player uses custom controls for play/pause, time, seeking, mute, volume, and fullscreen. For MKV on native-HLS clients such as many TVs, seeking uses a stable progressive HLS playlist and generates missing segments on demand.
 
 ## Supported video files
 

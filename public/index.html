@@ -20,7 +20,10 @@
       </section>
 
       <section class="player-section" aria-label="Video player">
-        <video id="player" preload="metadata" playsinline></video>
+        <div class="video-stage">
+          <video id="player" preload="metadata" playsinline></video>
+          <button id="centerPlayToggle" class="center-play" type="button" aria-label="Play or pause">Play</button>
+        </div>
         <div class="controls" aria-label="Player controls">
           <button id="playToggle" class="icon-button" type="button" aria-label="Play or pause">Play</button>
           <span id="currentTime" class="time-label">0:00</span>
@@ -28,6 +31,7 @@
           <span id="durationTime" class="time-label">Live</span>
           <button id="muteToggle" class="icon-button" type="button" aria-label="Mute or unmute">Sound</button>
           <input id="volumeSlider" class="volume-slider" type="range" min="0" max="1" value="1" step="0.01" aria-label="Volume">
+          <button id="fullscreenToggle" class="icon-button" type="button" aria-label="Fullscreen">Full</button>
         </div>
         <div class="now-playing">
           <span>Now playing</span>

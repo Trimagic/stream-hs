@@ -8,11 +8,14 @@ const message = document.querySelector("#message");
 const player = document.querySelector("#player");
 const nowPlaying = document.querySelector("#nowPlaying");
 const playToggle = document.querySelector("#playToggle");
+const centerPlayToggle = document.querySelector("#centerPlayToggle");
 const currentTimeLabel = document.querySelector("#currentTime");
 const seekSlider = document.querySelector("#seekSlider");
 const durationTimeLabel = document.querySelector("#durationTime");
 const muteToggle = document.querySelector("#muteToggle");
 const volumeSlider = document.querySelector("#volumeSlider");
+const fullscreenToggle = document.querySelector("#fullscreenToggle");
+const playerSection = document.querySelector(".player-section");
 
 let currentPath = "";
 let activePlaybackToken = 0;
@@ -55,13 +58,21 @@ rootForm.addEventListener("submit", async (event) => {
 });
 
 playToggle.addEventListener("click", () => {
+  togglePlayback();
+});
+
+centerPlayToggle.addEventListener("click", () => {
+  togglePlayback();
+});
+
+function togglePlayback() {
   if (!player.src) return;
   if (player.paused) {
     player.play().catch(() => showMessage("Browser blocked playback. Press play again."));
   } else {
     player.pause();
   }
-});
+}
 
 player.addEventListener("click", () => {
   if (!player.src) return;
@@ -81,6 +92,19 @@ volumeSlider.addEventListener("input", () => {
   player.volume = Number(volumeSlider.value);
   player.muted = player.volume === 0;
   updateVolumeControls();
+});
+
+fullscreenToggle.addEventListener("click", async () => {
+  try {
+    if (isFullscreen()) {
+      await exitFullscreen();
+    } else {
+      await enterFullscreen();
+    }
+    updateFullscreenControl();
+  } catch (error) {
+    showMessage(error.message || "Fullscreen is not available.");
+  }
 });
 
 seekSlider.addEventListener("input", () => {
@@ -108,6 +132,8 @@ player.addEventListener("loadedmetadata", updateControls);
 player.addEventListener("durationchange", updateControls);
 player.addEventListener("timeupdate", updateControls);
 player.addEventListener("volumechange", updateVolumeControls);
+document.addEventListener("fullscreenchange", updateFullscreenControl);
+document.addEventListener("webkitfullscreenchange", updateFullscreenControl);
 player.addEventListener("error", () => {
   const code = player.error?.code;
   const details = {
@@ -327,6 +353,8 @@ async function seekLive(targetTime) {
 
 function updateControls() {
   playToggle.textContent = player.paused ? "Play" : "Pause";
+  centerPlayToggle.textContent = player.paused ? "Play" : "Pause";
+  centerPlayToggle.classList.toggle("is-playing", !player.paused);
   const visibleDuration = getVisibleDuration();
 
   if (!canSeek()) {
@@ -360,6 +388,44 @@ function updateVolumeControls() {
 function canSeek() {
   if (playbackMode === "live") return Boolean(expectedDuration);
   return playbackMode === "file" && Number.isFinite(player.duration) && player.duration > 0;
+}
+
+async function enterFullscreen() {
+  if (playerSection.requestFullscreen) {
+    await playerSection.requestFullscreen();
+    return;
+  }
+
+  if (playerSection.webkitRequestFullscreen) {
+    playerSection.webkitRequestFullscreen();
+    return;
+  }
+
+  if (player.webkitEnterFullscreen) {
+    player.webkitEnterFullscreen();
+    return;
+  }
+
+  throw new Error("Fullscreen is not supported by this browser.");
+}
+
+async function exitFullscreen() {
+  if (document.exitFullscreen) {
+    await document.exitFullscreen();
+    return;
+  }
+
+  if (document.webkitExitFullscreen) {
+    document.webkitExitFullscreen();
+  }
+}
+
+function isFullscreen() {
+  return document.fullscreenElement === playerSection || document.webkitFullscreenElement === playerSection;
+}
+
+function updateFullscreenControl() {
+  fullscreenToggle.textContent = isFullscreen() ? "Exit" : "Full";
 }
 
 function getVisibleDuration() {
@@ -438,3 +504,4 @@ function formatSize(bytes) {
 
 init();
 updateControls();
+updateFullscreenControl();
