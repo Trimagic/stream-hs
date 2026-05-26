@@ -91,6 +91,13 @@ export function App() {
     }
   }
 
+  function selectAndFullscreen(item: MediaManifest) {
+    setSelected(item);
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>(".player-dock")?.requestFullscreen().catch(() => {});
+    }, 0);
+  }
+
   const selectedState = selected ? watchState[selected.id] : null;
 
   return (
@@ -119,11 +126,11 @@ export function App() {
         watchState={selectedState}
         onClose={() => setSelected(null)}
         onSaved={refreshLibrary}
-        onSelect={setSelected}
+        onSelect={selectAndFullscreen}
       />
 
       {view === "library" ? (
-        <LibraryPage media={media} watchState={watchState} onSelect={setSelected} />
+        <LibraryPage media={media} watchState={watchState} onSelect={selectAndFullscreen} />
       ) : (
         <StoragePage
           config={config}
@@ -160,6 +167,7 @@ function PlayerDock({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const firstPlaylistRef = useRef<HTMLButtonElement | null>(null);
   const playlistButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const controlButtonRefs = useRef<Array<HTMLButtonElement | HTMLInputElement | null>>([]);
   const lastSavedRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -169,6 +177,7 @@ function PlayerDock({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [shouldAutoFullscreen, setShouldAutoFullscreen] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
   function showControls() {
@@ -187,6 +196,7 @@ function PlayerDock({
     setDuration(media.duration || 0);
     setPlaying(false);
     setBuffering(true);
+    setShouldAutoFullscreen(true);
     const position = watchState?.position || 0;
     const setStart = () => {
       const nextDuration = Number.isFinite(video.duration) ? video.duration : media.duration || 0;
@@ -218,6 +228,12 @@ function PlayerDock({
     }, 5000);
     return () => window.clearInterval(timer);
   }, [media?.id, onSaved]);
+
+  useEffect(() => {
+    if (!media || !shouldAutoFullscreen || !dockRef.current || document.fullscreenElement) return;
+    dockRef.current.requestFullscreen().catch(() => {});
+    setShouldAutoFullscreen(false);
+  }, [media?.id, shouldAutoFullscreen]);
 
   useEffect(() => {
     return () => {
@@ -293,6 +309,7 @@ function PlayerDock({
     const key = event.key;
     const active = document.activeElement as HTMLElement | null;
     const activePlaylistIndex = playlistButtonRefs.current.findIndex((button) => button === active);
+    const activeControlIndex = controlButtonRefs.current.findIndex((button) => button === active);
 
     showControls();
 
@@ -330,6 +347,35 @@ function PlayerDock({
       return;
     }
 
+    if (activeControlIndex >= 0) {
+      if (key === "ArrowRight" || keyCode === 39) {
+        event.preventDefault();
+        controlButtonRefs.current[Math.min(activeControlIndex + 1, controlButtonRefs.current.length - 1)]?.focus();
+        return;
+      }
+      if (key === "ArrowLeft" || keyCode === 37) {
+        event.preventDefault();
+        controlButtonRefs.current[Math.max(activeControlIndex - 1, 0)]?.focus();
+        return;
+      }
+      if (key === "ArrowUp" || keyCode === 38) {
+        event.preventDefault();
+        dockRef.current?.focus();
+        return;
+      }
+      if (key === "ArrowDown" || keyCode === 40) {
+        event.preventDefault();
+        setPlaylistOpen(true);
+        window.setTimeout(() => firstPlaylistRef.current?.focus(), 120);
+        return;
+      }
+      if (key === "Enter" || key === " " || keyCode === 13) {
+        event.preventDefault();
+        active?.click();
+        return;
+      }
+    }
+
     if ([" ", "Enter", "MediaPlayPause", "Play", "Pause", "k"].includes(key) || keyCode === 13 || keyCode === 10252) {
       event.preventDefault();
       togglePlay();
@@ -355,7 +401,8 @@ function PlayerDock({
     }
     if (key === "ArrowUp" || keyCode === 38) {
       event.preventDefault();
-      setVideoVolume(volume + 0.08);
+      controlButtonRefs.current[0]?.focus();
+      return;
     }
     if (key === "ArrowDown" || keyCode === 40) {
       event.preventDefault();
@@ -450,21 +497,22 @@ function PlayerDock({
               </small>
             </div>
             <div className="control-center">
-            <button className="icon-button ghost" onClick={() => seekTo(currentTime - 10)} aria-label="Back 10 seconds">
+            <button ref={(element) => { controlButtonRefs.current[0] = element; }} className="icon-button ghost" onClick={() => seekTo(currentTime - 10)} aria-label="Back 10 seconds">
               <Icon name="rewind" />
             </button>
-            <button className="icon-button primary-icon" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+            <button ref={(element) => { controlButtonRefs.current[1] = element; }} className="icon-button primary-icon" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
               <Icon name={playing ? "pause" : "play"} />
             </button>
-            <button className="icon-button ghost" onClick={() => seekTo(currentTime + 10)} aria-label="Forward 10 seconds">
+            <button ref={(element) => { controlButtonRefs.current[2] = element; }} className="icon-button ghost" onClick={() => seekTo(currentTime + 10)} aria-label="Forward 10 seconds">
               <Icon name="forward" />
             </button>
             </div>
             <div className="control-right">
-              <button className="icon-button ghost" onClick={toggleMute} aria-label={muted ? "Sound on" : "Mute"}>
+              <button ref={(element) => { controlButtonRefs.current[3] = element; }} className="icon-button ghost" onClick={toggleMute} aria-label={muted ? "Sound on" : "Mute"}>
                 <Icon name={muted || volume === 0 ? "volumeOff" : "volume"} />
               </button>
               <input
+                ref={(element) => { controlButtonRefs.current[4] = element; }}
                 className="volume"
                 type="range"
                 min="0"
@@ -475,10 +523,11 @@ function PlayerDock({
                 onChange={(event) => setVideoVolume(Number(event.target.value))}
                 aria-label="Volume"
               />
-              <button className="icon-button ghost" onClick={toggleFullscreen} aria-label="Fullscreen">
+              <button ref={(element) => { controlButtonRefs.current[5] = element; }} className="icon-button ghost" onClick={toggleFullscreen} aria-label="Fullscreen">
                 <Icon name="fullscreen" />
               </button>
               <button
+                ref={(element) => { controlButtonRefs.current[6] = element; }}
                 className="icon-button ghost playlist-toggle"
                 onClick={() => {
                   const next = !playlistOpen;
