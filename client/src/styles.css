@@ -148,9 +148,8 @@ h2 {
 }
 
 .player-dock {
-  position: sticky;
-  top: 12px;
-  z-index: 5;
+  position: relative;
+  z-index: 1;
   margin-bottom: 18px;
   padding: 12px;
   border: 1px solid var(--line-hot);
@@ -205,8 +204,8 @@ h2 {
   left: 50%;
   top: 50%;
   z-index: 3;
-  min-width: 112px;
-  min-height: 112px;
+  min-width: 92px;
+  min-height: 92px;
   transform: translate(-50%, -50%);
   border-radius: 999px;
   border-color: rgba(255, 211, 106, 0.62);
@@ -214,11 +213,6 @@ h2 {
   color: #120a04;
   backdrop-filter: blur(18px);
   transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.player-stage:hover .center-play,
-.center-play:focus-visible {
-  opacity: 1;
 }
 
 .player-controls {
@@ -229,8 +223,8 @@ h2 {
   z-index: 2;
   display: grid;
   gap: 12px;
-  padding: 86px 24px 22px;
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.58) 58%, transparent);
+  padding: 70px 24px 20px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.42) 56%, transparent);
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
@@ -339,8 +333,7 @@ small,
 }
 
 .controls-hidden .player-topbar,
-.controls-hidden .player-controls,
-.controls-hidden .center-play {
+.controls-hidden .player-controls {
   opacity: 0;
   pointer-events: none;
 }
@@ -353,18 +346,25 @@ small,
   transform: translateY(18px);
 }
 
-.controls-hidden .center-play {
-  transform: translate(-50%, -50%) scale(0.92);
-}
-
 .controls-visible .player-topbar,
 .controls-visible .player-controls,
-.controls-visible .center-play,
 .player-stage:focus-within .player-topbar,
-.player-stage:focus-within .player-controls,
-.player-stage:focus-within .center-play {
+.player-stage:focus-within .player-controls {
   opacity: 1;
   pointer-events: auto;
+}
+
+.is-playing .center-play {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+.is-paused .center-play,
+.center-play:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .player-dock:fullscreen {
@@ -397,7 +397,7 @@ small,
 }
 
 .player-dock:fullscreen .player-controls {
-  padding: 120px 42px 36px;
+  padding: 92px 42px 34px;
 }
 
 .player-dock:fullscreen .player-copy strong {

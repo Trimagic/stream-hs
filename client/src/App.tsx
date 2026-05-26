@@ -277,7 +277,7 @@ function PlayerDock({
 
   return (
     <section
-      className={`player-dock ${controlsVisible || !playing ? "controls-visible" : "controls-hidden"}`}
+      className={`player-dock ${controlsVisible || !playing ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : "is-paused"}`}
       ref={dockRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
