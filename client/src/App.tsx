@@ -113,7 +113,14 @@ export function App() {
 
       {message && <div className="toast">{message}</div>}
 
-      <PlayerDock media={selected} watchState={selectedState} onClose={() => setSelected(null)} onSaved={refreshLibrary} />
+      <PlayerDock
+        media={selected}
+        playlist={media.filter((item) => item.ready)}
+        watchState={selectedState}
+        onClose={() => setSelected(null)}
+        onSaved={refreshLibrary}
+        onSelect={setSelected}
+      />
 
       {view === "library" ? (
         <LibraryPage media={media} watchState={watchState} onSelect={setSelected} />
@@ -136,17 +143,22 @@ export function App() {
 
 function PlayerDock({
   media,
+  playlist,
   watchState,
   onClose,
-  onSaved
+  onSaved,
+  onSelect
 }: {
   media: MediaManifest | null;
+  playlist: MediaManifest[];
   watchState: WatchState | null;
   onClose: () => void;
   onSaved: () => void;
+  onSelect: (media: MediaManifest) => void;
 }) {
   const dockRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const firstPlaylistRef = useRef<HTMLButtonElement | null>(null);
   const lastSavedRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -155,6 +167,14 @@ function PlayerDock({
   const [duration, setDuration] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const hideTimerRef = useRef<number | null>(null);
+
+  function showControls() {
+    setControlsVisible(true);
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => {
+      if (!videoRef.current?.paused) setControlsVisible(false);
+    }, 2600);
+  }
 
   useEffect(() => {
     const video = videoRef.current;
@@ -201,15 +221,19 @@ function PlayerDock({
     };
   }, []);
 
-  if (!media) return null;
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const active = document.fullscreenElement === dockRef.current;
+      if (active) {
+        showControls();
+        window.setTimeout(() => firstPlaylistRef.current?.focus(), 180);
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
-  const showControls = () => {
-    setControlsVisible(true);
-    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = window.setTimeout(() => {
-      if (!videoRef.current?.paused) setControlsVisible(false);
-    }, 2600);
-  };
+  if (!media) return null;
 
   const seekTo = (value: number) => {
     const video = videoRef.current;
@@ -377,6 +401,30 @@ function PlayerDock({
             </div>
           </div>
         </div>
+
+        <aside className="player-playlist" aria-label="Playlist">
+          <div className="playlist-head">
+            <span className="eyebrow">Playlist</span>
+            <strong>{playlist.length} videos</strong>
+          </div>
+          <div className="playlist-items">
+            {playlist.map((item, index) => (
+              <button
+                ref={index === 0 ? firstPlaylistRef : undefined}
+                className={item.id === media.id ? "playlist-item active" : "playlist-item"}
+                key={item.id}
+                onClick={() => {
+                  showControls();
+                  onSelect(item);
+                }}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <strong>{item.title}</strong>
+                <small>{formatDuration(item.duration)}</small>
+              </button>
+            ))}
+          </div>
+        </aside>
       </div>
     </section>
   );
