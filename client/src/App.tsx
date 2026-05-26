@@ -398,6 +398,11 @@ function PlayerDock({
 
     if ([" ", "Enter", "MediaPlayPause", "Play", "Pause", "k"].includes(key) || keyCode === 13 || keyCode === 10252) {
       event.preventDefault();
+      if ((key === "Enter" || keyCode === 13) && document.fullscreenElement !== dockRef.current) {
+        dockRef.current?.requestFullscreen().catch(() => {});
+        dockRef.current?.focus();
+        return;
+      }
       togglePlay();
       return;
     }
