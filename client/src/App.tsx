@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { api, getDeviceId } from "./api";
 import type { Config, MediaManifest, PrepareJob, SourceBrowse, WatchState } from "./types";
 
 type View = "library" | "storage";
@@ -15,6 +15,7 @@ export function App() {
   const [sourcePath, setSourcePath] = useState("");
   const [jobs, setJobs] = useState<PrepareJob[]>([]);
   const [message, setMessage] = useState("");
+  const [deviceId] = useState(() => getDeviceId());
   const jobsSignatureRef = useRef("");
 
   const refreshLibrary = useCallback(async () => {
@@ -98,6 +99,7 @@ export function App() {
         <div>
           <span className="eyebrow">Amber Glass</span>
           <h1>Stream HS</h1>
+          <small className="device-label">Device {deviceId.slice(-8)}</small>
         </div>
         <nav className="tabs" aria-label="Main navigation">
           <button className={view === "library" ? "active" : ""} onClick={() => setView("library")}>
@@ -454,12 +456,6 @@ function LibraryPage({
                   <span>{percent ? `${percent}%` : "new"}</span>
                 </div>
               </div>
-              <button disabled={!item.ready} onClick={(event) => {
-                event.stopPropagation();
-                onSelect(item);
-              }}>
-                Play
-              </button>
             </article>
           );
         })}

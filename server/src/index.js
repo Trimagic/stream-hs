@@ -10,7 +10,7 @@ import {
 import { config } from "./config.js";
 import { listJobs, prepareMedia } from "./prepare.js";
 import { streamPoster, streamPreparedVideo } from "./stream.js";
-import { getWatchState, readWatchState, updateWatchState } from "./watch-state.js";
+import { getWatchState, readDeviceWatchState, updateWatchState } from "./watch-state.js";
 
 const app = Fastify({
   logger: true,
@@ -56,16 +56,16 @@ app.get("/api/media/:id/poster", async (request, reply) => {
   return streamPoster(request, reply, request.params.id);
 });
 
-app.get("/api/watch-state", async () => {
-  return { items: await readWatchState() };
+app.get("/api/watch-state", async (request) => {
+  return { items: await readDeviceWatchState(request.query?.deviceId || "") };
 });
 
 app.get("/api/watch-state/:id", async (request) => {
-  return { item: await getWatchState(request.params.id) };
+  return { item: await getWatchState(request.params.id, request.query?.deviceId || "") };
 });
 
 app.put("/api/watch-state/:id", async (request) => {
-  return updateWatchState(request.params.id, request.body || {});
+  return updateWatchState(request.params.id, request.body || {}, request.query?.deviceId || "");
 });
 
 app.setErrorHandler((error, request, reply) => {

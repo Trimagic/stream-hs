@@ -1,6 +1,20 @@
 import type { Config, MediaManifest, PrepareJob, SourceBrowse, WatchState } from "./types";
 
 const apiBase = "";
+const deviceStorageKey = "stream-hs-device-id";
+
+function createDeviceId() {
+  const random = crypto.getRandomValues(new Uint32Array(2));
+  return `device-${random[0].toString(16)}${random[1].toString(16)}`;
+}
+
+export function getDeviceId() {
+  const existing = localStorage.getItem(deviceStorageKey);
+  if (existing) return existing;
+  const next = createDeviceId();
+  localStorage.setItem(deviceStorageKey, next);
+  return next;
+}
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${url}`, {
@@ -29,9 +43,9 @@ export const api = {
       body: JSON.stringify({ path })
     }),
   jobs: () => request<{ jobs: PrepareJob[] }>("/api/media/jobs"),
-  watchState: () => request<{ items: Record<string, WatchState> }>("/api/watch-state"),
+  watchState: () => request<{ items: Record<string, WatchState> }>(`/api/watch-state?deviceId=${encodeURIComponent(getDeviceId())}`),
   updateWatchState: (id: string, payload: { position: number; duration: number | null; completed?: boolean }) =>
-    request<WatchState>(`/api/watch-state/${encodeURIComponent(id)}`, {
+    request<WatchState>(`/api/watch-state/${encodeURIComponent(id)}?deviceId=${encodeURIComponent(getDeviceId())}`, {
       method: "PUT",
       body: JSON.stringify(payload)
     })

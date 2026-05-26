@@ -14,12 +14,21 @@ export async function readWatchState() {
   return JSON.parse(raw);
 }
 
-export async function getWatchState(id) {
+export async function readDeviceWatchState(deviceId) {
   const state = await readWatchState();
+  if (!deviceId) return state;
+  return {
+    ...state,
+    ...(state.devices?.[deviceId] || {})
+  };
+}
+
+export async function getWatchState(id, deviceId) {
+  const state = await readDeviceWatchState(deviceId);
   return state[id] || null;
 }
 
-export async function updateWatchState(id, patch) {
+export async function updateWatchState(id, patch, deviceId) {
   if (!id) {
     const error = new Error("Media id is required");
     error.statusCode = 400;
@@ -35,15 +44,26 @@ export async function updateWatchState(id, patch) {
   }
 
   const state = await readWatchState();
-  state[id] = {
-    ...(state[id] || {}),
+  const target = deviceId ? state.devices?.[deviceId] || {} : state;
+  const previous = target[id] || state[id] || {};
+  const next = {
+    ...previous,
     position,
-    duration: Number.isFinite(duration) && duration > 0 ? duration : state[id]?.duration || null,
+    duration: Number.isFinite(duration) && duration > 0 ? duration : previous.duration || null,
     completed: Boolean(patch?.completed),
     updatedAt: new Date().toISOString()
   };
 
-  await fs.writeFile(statePath(), `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  return state[id];
-}
+  if (deviceId) {
+    state.devices = state.devices || {};
+    state.devices[deviceId] = {
+      ...(state.devices[deviceId] || {}),
+      [id]: next
+    };
+  } else {
+    state[id] = next;
+  }
 
+  await fs.writeFile(statePath(), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  return next;
+}
