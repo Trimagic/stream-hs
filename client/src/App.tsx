@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { api, getDeviceId } from "./api";
 import type { Config, MediaManifest, PrepareJob, SourceBrowse, WatchState } from "./types";
 
@@ -92,10 +93,8 @@ export function App() {
   }
 
   function selectAndFullscreen(item: MediaManifest) {
-    setSelected(item);
-    window.setTimeout(() => {
-      document.querySelector<HTMLElement>(".player-dock")?.requestFullscreen().catch(() => {});
-    }, 0);
+    flushSync(() => setSelected(item));
+    document.querySelector<HTMLElement>(".player-dock")?.requestFullscreen().catch(() => {});
   }
 
   const selectedState = selected ? watchState[selected.id] : null;
