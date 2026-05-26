@@ -34,14 +34,18 @@ export function App() {
     }
   }, [refreshLibrary]);
 
-  const loadSource = useCallback(async (path = sourcePath) => {
-    const result = await api.browseSource(path);
-    setSource(result);
-    setSourcePath(result.path);
-  }, [sourcePath]);
+  const loadSource = useCallback(
+    async (path = sourcePath) => {
+      const result = await api.browseSource(path);
+      setSource(result);
+      setSourcePath(result.path);
+    },
+    [sourcePath]
+  );
 
   useEffect(() => {
-    api.config()
+    api
+      .config()
       .then((result) => {
         setConfig(result);
         setSourceRootInput(result.sourceRoot || "");
@@ -92,10 +96,10 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <span className="eyebrow">Stream HS</span>
-          <h1>Night Library</h1>
+          <span className="eyebrow">Amber Glass</span>
+          <h1>Stream HS</h1>
         </div>
-        <nav className="tabs">
+        <nav className="tabs" aria-label="Main navigation">
           <button className={view === "library" ? "active" : ""} onClick={() => setView("library")}>
             Library
           </button>
@@ -107,12 +111,7 @@ export function App() {
 
       {message && <div className="toast">{message}</div>}
 
-      <PlayerDock
-        media={selected}
-        watchState={selectedState}
-        onClose={() => setSelected(null)}
-        onSaved={refreshLibrary}
-      />
+      <PlayerDock media={selected} watchState={selectedState} onClose={() => setSelected(null)} onSaved={refreshLibrary} />
 
       {view === "library" ? (
         <LibraryPage media={media} watchState={watchState} onSelect={setSelected} />
@@ -143,18 +142,30 @@ function PlayerDock({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const dockRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastSavedRef = useRef(0);
+  const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !media) return;
     lastSavedRef.current = 0;
+    setCurrentTime(0);
+    setDuration(media.duration || 0);
+    setPlaying(false);
     const position = watchState?.position || 0;
     const setStart = () => {
-      if (position > 5 && Number.isFinite(video.duration)) {
-        video.currentTime = Math.min(position, Math.max(video.duration - 4, 0));
+      const nextDuration = Number.isFinite(video.duration) ? video.duration : media.duration || 0;
+      setDuration(nextDuration);
+      if (position > 5 && nextDuration > 0) {
+        video.currentTime = Math.min(position, Math.max(nextDuration - 4, 0));
       }
+      video.play().catch(() => setPlaying(false));
     };
     video.addEventListener("loadedmetadata", setStart, { once: true });
     return () => video.removeEventListener("loadedmetadata", setStart);
@@ -181,19 +192,154 @@ function PlayerDock({
 
   if (!media) return null;
 
+  const seekTo = (value: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const target = Math.max(0, Math.min(value, duration || video.duration || 0));
+    video.currentTime = target;
+    setCurrentTime(target);
+  };
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().catch(() => setPlaying(false));
+    } else {
+      video.pause();
+    }
+  };
+
+  const setVideoVolume = (value: number) => {
+    const video = videoRef.current;
+    const next = Math.max(0, Math.min(value, 1));
+    setVolume(next);
+    setMuted(next === 0);
+    if (video) {
+      video.volume = next;
+      video.muted = next === 0;
+    }
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = !video.muted;
+    video.muted = next;
+    setMuted(next);
+  };
+
+  const toggleFullscreen = () => {
+    const target = dockRef.current;
+    if (!target) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      target.requestFullscreen().catch(() => {});
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      togglePlay();
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      seekTo(currentTime - 10);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      seekTo(currentTime + 10);
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setVideoVolume(volume + 0.08);
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setVideoVolume(volume - 0.08);
+    }
+    if (event.key === "Escape") onClose();
+  };
+
   return (
-    <section className="player-dock">
-      <div className="player-copy">
-        <span>Now playing</span>
-        <strong>{media.title}</strong>
-        <small>
-          {formatDuration(media.duration)} · {media.video.width}x{media.video.height} · {media.video.copied ? "video copy" : "transcoded"}
-        </small>
+    <section className="player-dock" ref={dockRef} tabIndex={0} onKeyDown={handleKeyDown} aria-label="Video player">
+      <div className="player-stage">
+        <video
+          ref={videoRef}
+          src={media.urls?.stream || ""}
+          poster={media.urls?.poster || undefined}
+          playsInline
+          onClick={togglePlay}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+          onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : media.duration || 0)}
+          onVolumeChange={(event) => {
+            setVolume(event.currentTarget.volume);
+            setMuted(event.currentTarget.muted);
+          }}
+        />
+        <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+          {playing ? "Pause" : "Play"}
+        </button>
       </div>
-      <video ref={videoRef} src={media.urls?.stream || ""} poster={media.urls?.poster || undefined} controls autoPlay />
-      <button className="ghost close" onClick={onClose}>
-        Close
-      </button>
+
+      <div className="player-controls">
+        <div className="player-copy">
+          <span>Now playing</span>
+          <strong>{media.title}</strong>
+          <small>
+            {formatDuration(duration || media.duration)} - {media.video.width}x{media.video.height} -{" "}
+            {media.video.copied ? "video copy" : "transcoded"}
+          </small>
+        </div>
+
+        <div className="timeline-row">
+          <span>{formatDuration(currentTime)}</span>
+          <input
+            className="timeline"
+            type="range"
+            min="0"
+            max={Math.max(duration || 0, 1)}
+            step="0.25"
+            value={Math.min(currentTime, Math.max(duration || 0, 1))}
+            onChange={(event) => seekTo(Number(event.target.value))}
+            aria-label="Seek"
+          />
+          <span>{formatDuration(duration || media.duration)}</span>
+        </div>
+
+        <div className="control-row">
+          <button onClick={togglePlay}>{playing ? "Pause" : "Play"}</button>
+          <button className="ghost" onClick={() => seekTo(currentTime - 10)}>
+            -10s
+          </button>
+          <button className="ghost" onClick={() => seekTo(currentTime + 10)}>
+            +10s
+          </button>
+          <button className="ghost" onClick={toggleMute}>
+            {muted ? "Sound on" : "Mute"}
+          </button>
+          <input
+            className="volume"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={muted ? 0 : volume}
+            onChange={(event) => setVideoVolume(Number(event.target.value))}
+            aria-label="Volume"
+          />
+          <button className="ghost" onClick={toggleFullscreen}>
+            Fullscreen
+          </button>
+          <button className="ghost" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
     </section>
   );
 }
@@ -208,46 +354,62 @@ function LibraryPage({
   onSelect: (media: MediaManifest) => void;
 }) {
   const ready = useMemo(() => media.filter((item) => item.ready), [media]);
+  const latest = ready[0];
 
   return (
     <main className="content-grid">
-      <section className="panel hero-panel">
+      <section className="library-hero">
         <div>
-          <span className="eyebrow">Prepared media</span>
-          <h2>{ready.length} videos ready</h2>
+          <span className="eyebrow">Marathon palette</span>
+          <h2>{ready.length} streams online</h2>
+          <p>Poster panels, big focus states, and remote-friendly controls for sofa playback.</p>
         </div>
-        <p>Prepared MP4 streams play with normal duration, seeking, pause, and TV-friendly audio.</p>
+        {latest && (
+          <button className="hero-action" onClick={() => onSelect(latest)}>
+            Resume latest
+          </button>
+        )}
       </section>
 
-      <section className="panel table-panel">
-        <div className="table-head">
-          <span>Title</span>
-          <span>Video</span>
-          <span>Audio</span>
-          <span>Watched</span>
-          <span></span>
-        </div>
-        {media.length === 0 && <div className="empty">No prepared videos yet. Open Storage and prepare a source file.</div>}
+      {media.length === 0 && <div className="empty panel">No prepared videos yet. Open Storage and prepare a source file.</div>}
+
+      <section className="media-grid" aria-label="Prepared videos">
         {media.map((item) => {
           const state = watchState[item.id];
           const percent = state?.duration ? Math.min(100, Math.round((state.position / state.duration) * 100)) : 0;
           return (
-            <article className="media-row" key={item.id}>
-              <div className="title-cell">
+            <article
+              className="media-card"
+              key={item.id}
+              tabIndex={0}
+              onClick={() => item.ready && onSelect(item)}
+              onKeyDown={(event) => {
+                if ((event.key === "Enter" || event.key === " ") && item.ready) {
+                  event.preventDefault();
+                  onSelect(item);
+                }
+              }}
+            >
+              <div className="poster-frame">
+                {item.urls?.poster ? <img src={item.urls.poster} alt="" /> : <div className="poster-placeholder" />}
+                <span className={item.ready ? "status ready" : "status"}>{item.ready ? "Ready" : `${item.progress}%`}</span>
+                <div className="watch-bar">
+                  <i style={{ width: `${percent}%` }} />
+                </div>
+              </div>
+              <div className="media-meta">
                 <strong>{item.title}</strong>
                 <small>{item.sourceRelativePath}</small>
+                <div className="meta-pills">
+                  <span>{item.video.width ? `${item.video.width}p` : item.video.codec || "video"}</span>
+                  <span>{item.audio.codec} {item.audio.channels}ch</span>
+                  <span>{percent ? `${percent}%` : "new"}</span>
+                </div>
               </div>
-              <span>
-                {item.video.codec || "video"} {item.video.width ? `${item.video.width}p` : ""}
-              </span>
-              <span>
-                {item.audio.codec} {item.audio.channels}ch
-              </span>
-              <div className="progress-cell">
-                <div className="bar"><i style={{ width: `${percent}%` }} /></div>
-                <small>{percent ? `${percent}% watched` : "Not started"}</small>
-              </div>
-              <button disabled={!item.ready} onClick={() => onSelect(item)}>
+              <button disabled={!item.ready} onClick={(event) => {
+                event.stopPropagation();
+                onSelect(item);
+              }}>
                 Play
               </button>
             </article>
@@ -295,14 +457,16 @@ function StoragePage({
       <section className="panel browser-panel">
         {jobs.length > 0 && (
           <div className="jobs-strip">
-            <span className="eyebrow">Active preparations</span>
+            <span className="eyebrow">Preparing</span>
             {jobs.map((job) => (
               <div className="job-card" key={job.id}>
                 <div>
                   <strong>{job.media.title}</strong>
                   <small>{job.status === "error" ? job.error || "error" : `${job.progress}% ready`}</small>
                 </div>
-                <div className="bar"><i style={{ width: `${job.progress}%` }} /></div>
+                <div className="bar">
+                  <i style={{ width: `${job.progress}%` }} />
+                </div>
               </div>
             ))}
           </div>
@@ -338,8 +502,10 @@ function StoragePage({
                 </div>
                 <span>{video.directPlay ? "direct" : "prepare"}</span>
                 <div className="progress-cell">
-                  <div className="bar"><i style={{ width: `${job?.progress || 0}%` }} /></div>
-                  <small>{job ? `${job.status} · ${job.progress}%` : "idle"}</small>
+                  <div className="bar">
+                    <i style={{ width: `${job?.progress || 0}%` }} />
+                  </div>
+                  <small>{job ? `${job.status} - ${job.progress}%` : "idle"}</small>
                 </div>
                 <button onClick={() => onPrepare(video.path)} disabled={job?.status === "processing"}>
                   {job?.status === "processing" ? "Preparing" : "Prepare"}
@@ -365,9 +531,11 @@ function formatSize(bytes: number) {
 }
 
 function formatDuration(seconds: number | null) {
-  if (!seconds) return "unknown";
+  if (!seconds) return "0:00";
   const total = Math.floor(seconds);
-  const minutes = Math.floor(total / 60);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
   const rest = total % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
