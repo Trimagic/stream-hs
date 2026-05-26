@@ -929,6 +929,12 @@ small,
   transform: translateX(0);
 }
 
+.player-dock:fullscreen.controls-hidden[data-playlist-open="true"] .player-playlist {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(100%);
+}
+
 .player-dock:fullscreen[data-playlist-open="false"] .player-playlist {
   opacity: 0;
   pointer-events: none;
