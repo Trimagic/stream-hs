@@ -93,6 +93,10 @@ export function App() {
 
   function selectMedia(item: MediaManifest) {
     setSelected(item);
+    window.setTimeout(() => {
+      document.querySelector<HTMLElement>(".player-dock")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelector<HTMLElement>(".player-dock")?.focus();
+    }, 0);
   }
 
   const selectedState = selected ? watchState[selected.id] : null;
@@ -174,6 +178,7 @@ function PlayerDock({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
+  const [videoError, setVideoError] = useState("");
   const hideTimerRef = useRef<number | null>(null);
 
   function showControls() {
@@ -192,6 +197,8 @@ function PlayerDock({
     setDuration(media.duration || 0);
     setPlaying(false);
     setBuffering(true);
+    setPlaylistOpen(false);
+    setVideoError("");
     const position = watchState?.position || 0;
     const setStart = () => {
       const nextDuration = Number.isFinite(video.duration) ? video.duration : media.duration || 0;
@@ -447,6 +454,11 @@ function PlayerDock({
           onCanPlay={() => setBuffering(false)}
           onPlaying={() => setBuffering(false)}
           onSeeked={() => setBuffering(false)}
+          onError={(event) => {
+            const code = event.currentTarget.error?.code;
+            setBuffering(false);
+            setVideoError(code ? `Video error ${code}` : "Video failed to load");
+          }}
           onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
           onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : media.duration || 0)}
           onVolumeChange={(event) => {
@@ -473,6 +485,13 @@ function PlayerDock({
             <span />
             <span />
             <span />
+          </div>
+        )}
+
+        {videoError && (
+          <div className="player-error">
+            <strong>{videoError}</strong>
+            <small>{media.urls?.stream || "Missing stream URL"}</small>
           </div>
         )}
 

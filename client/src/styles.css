@@ -563,6 +563,25 @@ small,
   animation-delay: 220ms;
 }
 
+.player-error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+  width: min(520px, calc(100% - 48px));
+  padding: 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(232, 97, 97, 0.5);
+  background: rgba(22, 8, 8, 0.92);
+  color: #ffd1d1;
+}
+
+.player-error small {
+  overflow-wrap: anywhere;
+}
+
 @keyframes loaderPulse {
   0%,
   100% {
