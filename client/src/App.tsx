@@ -16,6 +16,7 @@ export function App() {
   const [jobs, setJobs] = useState<PrepareJob[]>([]);
   const [message, setMessage] = useState("");
   const [deviceId] = useState(() => getDeviceId());
+  const [fullscreenRequestId, setFullscreenRequestId] = useState<string | null>(null);
   const jobsSignatureRef = useRef("");
 
   const refreshLibrary = useCallback(async () => {
@@ -93,6 +94,7 @@ export function App() {
 
   function selectMedia(item: MediaManifest) {
     setSelected(item);
+    setFullscreenRequestId(item.id);
     window.setTimeout(() => {
       document.querySelector<HTMLElement>(".player-dock")?.scrollIntoView({ behavior: "smooth", block: "start" });
       document.querySelector<HTMLElement>(".player-dock")?.focus();
@@ -128,6 +130,8 @@ export function App() {
         onClose={() => setSelected(null)}
         onSaved={refreshLibrary}
         onSelect={selectMedia}
+        fullscreenRequestId={fullscreenRequestId}
+        onFullscreenRequestHandled={() => setFullscreenRequestId(null)}
       />
 
       {view === "library" ? (
@@ -155,7 +159,9 @@ function PlayerDock({
   watchState,
   onClose,
   onSaved,
-  onSelect
+  onSelect,
+  fullscreenRequestId,
+  onFullscreenRequestHandled
 }: {
   media: MediaManifest | null;
   playlist: MediaManifest[];
@@ -163,6 +169,8 @@ function PlayerDock({
   onClose: () => void;
   onSaved: () => void;
   onSelect: (media: MediaManifest) => void;
+  fullscreenRequestId: string | null;
+  onFullscreenRequestHandled: () => void;
 }) {
   const dockRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -250,6 +258,13 @@ function PlayerDock({
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    if (!media || fullscreenRequestId !== media.id || !dockRef.current) return;
+    dockRef.current.focus();
+    dockRef.current.requestFullscreen().catch(() => {});
+    onFullscreenRequestHandled();
+  }, [media?.id, fullscreenRequestId, onFullscreenRequestHandled]);
 
   const seekTo = (value: number) => {
     const video = videoRef.current;
