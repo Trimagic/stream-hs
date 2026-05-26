@@ -122,6 +122,7 @@ export function App() {
           setSourceRootInput={setSourceRootInput}
           saveSourceRoot={saveSourceRoot}
           source={source}
+          media={media}
           jobs={jobs}
           onNavigate={(path) => loadSource(path).catch((error) => setMessage(error.message))}
           onPrepare={prepare}
@@ -191,6 +192,12 @@ function PlayerDock({
     }, 5000);
     return () => window.clearInterval(timer);
   }, [media?.id, onSaved]);
+
+  useEffect(() => {
+    return () => {
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, []);
 
   if (!media) return null;
 
@@ -467,6 +474,7 @@ function StoragePage({
   setSourceRootInput,
   saveSourceRoot,
   source,
+  media,
   jobs,
   onNavigate,
   onPrepare
@@ -476,11 +484,13 @@ function StoragePage({
   setSourceRootInput: (value: string) => void;
   saveSourceRoot: (event: React.FormEvent) => void;
   source: SourceBrowse | null;
+  media: MediaManifest[];
   jobs: PrepareJob[];
   onNavigate: (path: string) => void;
   onPrepare: (path: string) => void;
 }) {
   const jobByPath = new Map(jobs.map((job) => [job.media.sourceRelativePath, job]));
+  const mediaByPath = new Map(media.map((item) => [item.sourceRelativePath, item]));
 
   return (
     <main className="content-grid">
@@ -535,21 +545,24 @@ function StoragePage({
         <div className="raw-list">
           {source?.videos.map((video) => {
             const job = jobByPath.get(video.path);
+            const prepared = mediaByPath.get(video.path);
+            const status = job ? job.status : prepared?.ready ? "ready" : "idle";
+            const progress = job?.progress ?? prepared?.progress ?? 0;
             return (
-              <article className="raw-row" key={video.path}>
+              <article className={prepared?.ready ? "raw-row is-ready" : "raw-row"} key={video.path}>
                 <div>
                   <strong>{video.name}</strong>
                   <small>{formatSize(video.size)}</small>
                 </div>
-                <span>{video.directPlay ? "direct" : "prepare"}</span>
+                <span className={prepared?.ready ? "raw-status ready" : "raw-status"}>{prepared?.ready ? "ready" : video.directPlay ? "direct" : "prepare"}</span>
                 <div className="progress-cell">
                   <div className="bar">
-                    <i style={{ width: `${job?.progress || 0}%` }} />
+                    <i style={{ width: `${prepared?.ready ? 100 : progress}%` }} />
                   </div>
-                  <small>{job ? `${job.status} - ${job.progress}%` : "idle"}</small>
+                  <small>{prepared?.ready ? "prepared in media" : job ? `${status} - ${progress}%` : "idle"}</small>
                 </div>
-                <button onClick={() => onPrepare(video.path)} disabled={job?.status === "processing"}>
-                  {job?.status === "processing" ? "Preparing" : "Prepare"}
+                <button onClick={() => onPrepare(video.path)} disabled={job?.status === "processing" || prepared?.ready}>
+                  {prepared?.ready ? "Ready" : job?.status === "processing" ? "Preparing" : "Prepare"}
                 </button>
               </article>
             );

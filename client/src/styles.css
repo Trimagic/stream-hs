@@ -347,9 +347,7 @@ small,
 }
 
 .controls-visible .player-topbar,
-.controls-visible .player-controls,
-.player-stage:focus-within .player-topbar,
-.player-stage:focus-within .player-controls {
+.controls-visible .player-controls {
   opacity: 1;
   pointer-events: auto;
 }
@@ -661,6 +659,28 @@ small,
 
 .raw-row:hover {
   border-color: var(--line-hot);
+}
+
+.raw-row.is-ready {
+  border-color: rgba(215, 255, 56, 0.3);
+  background: linear-gradient(135deg, rgba(215, 255, 56, 0.085), rgba(16, 18, 16, 0.78));
+}
+
+.raw-status {
+  width: fit-content;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 159, 40, 0.18);
+  border-radius: 8px;
+  color: var(--amber-2);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.raw-status.ready {
+  border-color: rgba(215, 255, 56, 0.48);
+  background: rgba(215, 255, 56, 0.1);
+  color: var(--acid);
 }
 
 .progress-cell {
