@@ -868,6 +868,14 @@ small,
   color: #10150f;
 }
 
+.playlist-toggle {
+  display: none;
+}
+
+.player-dock:fullscreen .playlist-toggle {
+  display: inline-grid;
+}
+
 .volume {
   width: 118px;
   min-height: 46px;

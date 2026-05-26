@@ -159,6 +159,7 @@ function PlayerDock({
   const dockRef = useRef<HTMLElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const firstPlaylistRef = useRef<HTMLButtonElement | null>(null);
+  const playlistButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const lastSavedRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -288,28 +289,76 @@ function PlayerDock({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    const keyCode = event.keyCode || event.which;
+    const key = event.key;
+    const active = document.activeElement as HTMLElement | null;
+    const activePlaylistIndex = playlistButtonRefs.current.findIndex((button) => button === active);
+
     showControls();
-    if (event.key === " " || event.key === "Enter") {
+
+    if (playlistOpen && activePlaylistIndex >= 0) {
+      if (key === "ArrowDown" || keyCode === 40) {
+        event.preventDefault();
+        playlistButtonRefs.current[Math.min(activePlaylistIndex + 1, playlistButtonRefs.current.length - 1)]?.focus();
+        return;
+      }
+      if (key === "ArrowUp" || keyCode === 38) {
+        event.preventDefault();
+        playlistButtonRefs.current[Math.max(activePlaylistIndex - 1, 0)]?.focus();
+        return;
+      }
+      if (key === "ArrowLeft" || keyCode === 37) {
+        event.preventDefault();
+        setPlaylistOpen(false);
+        dockRef.current?.focus();
+        return;
+      }
+      if (key === "Enter" || key === " " || keyCode === 13) {
+        event.preventDefault();
+        active?.click();
+        return;
+      }
+    }
+
+    if ([" ", "Enter", "MediaPlayPause", "Play", "Pause", "k"].includes(key) || keyCode === 13 || keyCode === 10252) {
       event.preventDefault();
       togglePlay();
+      return;
     }
-    if (event.key === "ArrowLeft") {
+    if (key === "MediaPlay" || keyCode === 415) {
+      event.preventDefault();
+      videoRef.current?.play().catch(() => {});
+      return;
+    }
+    if (key === "MediaPause" || keyCode === 19) {
+      event.preventDefault();
+      videoRef.current?.pause();
+      return;
+    }
+    if (key === "ArrowLeft" || keyCode === 37) {
       event.preventDefault();
       seekTo(currentTime - 10);
     }
-    if (event.key === "ArrowRight") {
+    if (key === "ArrowRight" || keyCode === 39) {
       event.preventDefault();
       seekTo(currentTime + 10);
     }
-    if (event.key === "ArrowUp") {
+    if (key === "ArrowUp" || keyCode === 38) {
       event.preventDefault();
       setVideoVolume(volume + 0.08);
     }
-    if (event.key === "ArrowDown") {
+    if (key === "ArrowDown" || keyCode === 40) {
       event.preventDefault();
       setVideoVolume(volume - 0.08);
     }
-    if (event.key === "Escape") onClose();
+    if (key === "Escape" || key === "BrowserBack" || keyCode === 10009 || keyCode === 461) {
+      event.preventDefault();
+      if (playlistOpen) {
+        setPlaylistOpen(false);
+      } else {
+        onClose();
+      }
+    }
   };
 
   return (
@@ -420,7 +469,7 @@ function PlayerDock({
                 <Icon name="fullscreen" />
               </button>
               <button
-                className="icon-button ghost"
+                className="icon-button ghost playlist-toggle"
                 onClick={() => {
                   const next = !playlistOpen;
                   setPlaylistOpen(next);
@@ -443,7 +492,10 @@ function PlayerDock({
           <div className="playlist-items">
             {playlist.map((item, index) => (
               <button
-                ref={index === 0 ? firstPlaylistRef : undefined}
+                ref={(element) => {
+                  playlistButtonRefs.current[index] = element;
+                  if (index === 0) firstPlaylistRef.current = element;
+                }}
                 className={item.id === media.id ? "playlist-item active" : "playlist-item"}
                 key={item.id}
                 onClick={() => {
