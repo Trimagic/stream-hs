@@ -338,7 +338,7 @@ function PlayerDock({
           }}
         />
         <div className="player-topbar">
-          <button className="icon-button ghost" onClick={onClose} aria-label="Back">
+          <button className="icon-button ghost back-button" onClick={onClose} aria-label="Back">
             <Icon name="back" />
           </button>
           <div className="player-copy">
@@ -433,9 +433,14 @@ function PlayerDock({
                   onSelect(item);
                 }}
               >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{item.title}</strong>
-                <small>{formatDuration(item.duration)}</small>
+                <span className="playlist-thumb">
+                  {item.urls?.poster ? <img src={item.urls.poster} alt="" /> : <i />}
+                  <b>{formatDuration(item.duration)}</b>
+                </span>
+                <span className="playlist-copy">
+                  <strong>{item.title}</strong>
+                  <small>{String(index + 1).padStart(2, "0")} - {item.sourceRelativePath}</small>
+                </span>
               </button>
             ))}
           </div>
