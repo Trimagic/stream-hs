@@ -361,6 +361,7 @@ function PlayerDock({
               max={Math.max(duration || 0, 1)}
               step="0.25"
               value={Math.min(currentTime, Math.max(duration || 0, 1))}
+              style={{ "--range-fill": `${duration ? Math.min(100, (currentTime / duration) * 100) : 0}%` } as React.CSSProperties}
               onChange={(event) => seekTo(Number(event.target.value))}
               aria-label="Seek"
             />
@@ -395,6 +396,7 @@ function PlayerDock({
                 max="1"
                 step="0.01"
                 value={muted ? 0 : volume}
+                style={{ "--range-fill": `${muted ? 0 : volume * 100}%` } as React.CSSProperties}
                 onChange={(event) => setVideoVolume(Number(event.target.value))}
                 aria-label="Volume"
               />
@@ -436,10 +438,11 @@ function PlayerDock({
                 <span className="playlist-thumb">
                   {item.urls?.poster ? <img src={item.urls.poster} alt="" /> : <i />}
                   <b>{formatDuration(item.duration)}</b>
+                  <span className="playlist-index">{String(index + 1).padStart(2, "0")}</span>
                 </span>
                 <span className="playlist-copy">
                   <strong>{item.title}</strong>
-                  <small>{String(index + 1).padStart(2, "0")}</small>
+                  <small>{item.sourceRelativePath}</small>
                 </span>
               </button>
             ))}
