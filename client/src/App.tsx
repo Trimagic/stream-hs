@@ -647,6 +647,7 @@ function LibraryPage({
   onSelect: (media: MediaManifest) => void;
 }) {
   const resumeRef = useRef<HTMLButtonElement | null>(null);
+  const firstCardRef = useRef<HTMLElement | null>(null);
   const ready = useMemo(() => media.filter((item) => item.ready), [media]);
   const latest = useMemo(() => {
     return [...ready].sort((a, b) => {
@@ -677,7 +678,18 @@ function LibraryPage({
               <span>{latest.video.width ? `${latest.video.width}x${latest.video.height}` : latest.video.codec || "video"}</span>
               <span>{latest.audio.codec} {latest.audio.channels}ch</span>
             </div>
-            <button ref={resumeRef} className="hero-action" onClick={() => onSelect(latest)}>
+            <button
+              ref={resumeRef}
+              className="hero-action"
+              onClick={() => onSelect(latest)}
+              onKeyDown={(event) => {
+                const keyCode = event.keyCode || event.which;
+                if (event.key === "ArrowDown" || keyCode === 40) {
+                  event.preventDefault();
+                  firstCardRef.current?.focus();
+                }
+              }}
+            >
               Resume
             </button>
           </div>
@@ -694,7 +706,15 @@ function LibraryPage({
 
       {media.length === 0 && <div className="empty panel">No prepared videos yet. Open Storage and prepare a source file.</div>}
 
-      <MediaGrid title="All prepared" media={media} watchState={watchState} onSelect={onSelect} autoFocusFirst={!latest} />
+      <MediaGrid
+        title="All prepared"
+        media={media}
+        watchState={watchState}
+        onSelect={onSelect}
+        autoFocusFirst={!latest}
+        resumeRef={resumeRef}
+        externalFirstCardRef={firstCardRef}
+      />
     </main>
   );
 }
@@ -704,15 +724,21 @@ function MediaGrid({
   media,
   watchState,
   onSelect,
+  resumeRef,
+  externalFirstCardRef,
   autoFocusFirst = false
 }: {
   title: string;
   media: MediaManifest[];
   watchState: Record<string, WatchState>;
   onSelect: (media: MediaManifest) => void;
+  resumeRef?: React.RefObject<HTMLButtonElement | null>;
+  externalFirstCardRef?: React.RefObject<HTMLElement | null>;
   autoFocusFirst?: boolean;
 }) {
   const firstCardRef = useRef<HTMLElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const cardRefs = useRef<Array<HTMLElement | null>>([]);
 
   useEffect(() => {
     if (!autoFocusFirst || !firstCardRef.current) return;
@@ -722,13 +748,58 @@ function MediaGrid({
 
   if (media.length === 0) return null;
 
+  const focusCard = (index: number) => {
+    const target = cardRefs.current[Math.max(0, Math.min(index, media.length - 1))];
+    target?.focus();
+  };
+
+  const getColumnCount = () => {
+    const grid = gridRef.current;
+    if (!grid) return 1;
+    const columns = window.getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean).length;
+    return Math.max(1, columns);
+  };
+
+  const handleGridKeyDown = (event: React.KeyboardEvent) => {
+    const keyCode = event.keyCode || event.which;
+    const key = event.key;
+    const activeIndex = cardRefs.current.findIndex((card) => card === document.activeElement);
+    if (activeIndex < 0) return;
+    const columns = getColumnCount();
+
+    if (key === "ArrowRight" || keyCode === 39) {
+      event.preventDefault();
+      focusCard(activeIndex + 1);
+    }
+    if (key === "ArrowLeft" || keyCode === 37) {
+      event.preventDefault();
+      focusCard(activeIndex - 1);
+    }
+    if (key === "ArrowDown" || keyCode === 40) {
+      event.preventDefault();
+      focusCard(activeIndex + columns);
+    }
+    if (key === "ArrowUp" || keyCode === 38) {
+      event.preventDefault();
+      if (activeIndex < columns && resumeRef?.current) {
+        resumeRef.current.focus();
+      } else {
+        focusCard(activeIndex - columns);
+      }
+    }
+    if (key === "Enter" || key === " " || keyCode === 13) {
+      event.preventDefault();
+      media[activeIndex]?.ready && onSelect(media[activeIndex]);
+    }
+  };
+
   return (
     <section className="grid-section">
       <div className="grid-header">
         <h3>{title}</h3>
         <span>{media.length}</span>
       </div>
-      <div className="media-grid" aria-label={title}>
+      <div className="media-grid" aria-label={title} ref={gridRef} onKeyDown={handleGridKeyDown}>
         {media.map((item, index) => {
           const state = watchState[item.id];
           const percent = state?.duration ? Math.min(100, Math.round((state.position / state.duration) * 100)) : 0;
@@ -736,7 +807,13 @@ function MediaGrid({
             <article
               className="media-card"
               key={item.id}
-              ref={index === 0 ? firstCardRef : undefined}
+              ref={(element) => {
+                cardRefs.current[index] = element;
+                if (index === 0) {
+                  firstCardRef.current = element;
+                  if (externalFirstCardRef) externalFirstCardRef.current = element;
+                }
+              }}
               tabIndex={0}
               onClick={() => item.ready && onSelect(item)}
               onKeyDown={(event) => {
