@@ -456,6 +456,7 @@ small,
   margin-bottom: 18px;
   padding: 10px;
   background: #050805;
+  --playlist-width: min(340px, 32vw);
 }
 
 .player-stage {
@@ -464,6 +465,7 @@ small,
   border: 1px solid var(--line);
   border-radius: 2px;
   background: #000;
+  transition: width 240ms ease;
 }
 
 .player-stage video {
@@ -474,6 +476,7 @@ small,
   aspect-ratio: 16 / 9;
   object-fit: contain;
   background: #000;
+  transition: width 240ms ease;
 }
 
 .player-topbar {
@@ -488,7 +491,7 @@ small,
   padding: 22px 24px 64px;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.84), transparent);
   pointer-events: none;
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: opacity 180ms ease, transform 180ms ease, right 240ms ease;
 }
 
 .player-topbar button,
@@ -538,7 +541,7 @@ small,
   gap: 12px;
   padding: 70px 24px 20px;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.84), rgba(0, 0, 0, 0.44) 56%, transparent);
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition: opacity 180ms ease, transform 180ms ease, right 240ms ease;
 }
 
 .player-playlist {
@@ -549,7 +552,7 @@ small,
   z-index: 4;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(390px, 36vw);
+  width: var(--playlist-width);
   overflow: hidden;
   border-left: 1px solid rgba(184, 245, 106, 0.24);
   background: #080b08;
@@ -815,7 +818,7 @@ small,
 }
 
 .player-dock:fullscreen[data-playlist-open="true"] .player-stage {
-  width: calc(100vw - min(390px, 36vw));
+  width: calc(100vw - var(--playlist-width));
 }
 
 .player-dock:fullscreen .player-stage video {
@@ -827,7 +830,7 @@ small,
 }
 
 .player-dock:fullscreen[data-playlist-open="true"] .player-stage video {
-  width: calc(100vw - min(390px, 36vw));
+  width: calc(100vw - var(--playlist-width));
 }
 
 .player-dock:fullscreen .player-topbar {
@@ -850,7 +853,7 @@ small,
 
 .player-dock:fullscreen[data-playlist-open="true"] .player-topbar,
 .player-dock:fullscreen[data-playlist-open="true"] .player-controls {
-  right: min(390px, 36vw);
+  right: var(--playlist-width);
 }
 
 .player-dock:fullscreen[data-playlist-open="false"] .player-playlist {
