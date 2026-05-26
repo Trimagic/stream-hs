@@ -15,6 +15,7 @@ export function App() {
   const [sourcePath, setSourcePath] = useState("");
   const [jobs, setJobs] = useState<PrepareJob[]>([]);
   const [message, setMessage] = useState("");
+  const jobsSignatureRef = useRef("");
 
   const refreshLibrary = useCallback(async () => {
     const [mediaResult, stateResult] = await Promise.all([api.media(), api.watchState()]);
@@ -25,7 +26,10 @@ export function App() {
   const refreshJobs = useCallback(async () => {
     const result = await api.jobs();
     setJobs(result.jobs);
-    if (result.jobs.some((job) => job.status === "processing")) {
+    const signature = result.jobs.map((job) => `${job.id}:${job.status}:${job.progress}`).join("|");
+    const changed = signature !== jobsSignatureRef.current;
+    jobsSignatureRef.current = signature;
+    if (changed || result.jobs.some((job) => job.status === "processing")) {
       await refreshLibrary();
     }
   }, [refreshLibrary]);
@@ -220,7 +224,7 @@ function LibraryPage({
           <span>Title</span>
           <span>Video</span>
           <span>Audio</span>
-          <span>Progress</span>
+          <span>Watched</span>
           <span></span>
         </div>
         {media.length === 0 && <div className="empty">No prepared videos yet. Open Storage and prepare a source file.</div>}
@@ -241,7 +245,7 @@ function LibraryPage({
               </span>
               <div className="progress-cell">
                 <div className="bar"><i style={{ width: `${percent}%` }} /></div>
-                <small>{percent || item.progress || 0}%</small>
+                <small>{percent ? `${percent}% watched` : "Not started"}</small>
               </div>
               <button disabled={!item.ready} onClick={() => onSelect(item)}>
                 Play

@@ -126,15 +126,15 @@ async function runPrepareJob(job) {
       }
     });
 
-    await fs.rename(tempPath, outputPath);
-    await createPoster(job.manifest.sourcePath, posterPath(job.id)).catch(() => {});
-
     job.status = "ready";
     job.progress = 100;
     job.manifest.status = "ready";
     job.manifest.progress = 100;
     job.manifest.preparedAt = new Date().toISOString();
     job.manifest.updatedAt = new Date().toISOString();
+
+    await fs.rename(tempPath, outputPath);
+    await createPoster(job.manifest.sourcePath, posterPath(job.id), job.manifest.duration).catch(() => {});
     await writeManifest(job.manifest);
   } catch (error) {
     job.status = "error";
@@ -178,12 +178,13 @@ function buildPrepareArgs(inputPath, outputPath, copyVideo) {
   ];
 }
 
-async function createPoster(inputPath, outputPath) {
+async function createPoster(inputPath, outputPath, duration) {
+  const posterAt = pickPosterTime(duration);
   const args = [
     "-hide_banner",
     "-y",
     "-ss",
-    config.posterAt,
+    posterAt,
     "-i",
     inputPath,
     "-frames:v",
@@ -193,6 +194,13 @@ async function createPoster(inputPath, outputPath) {
     outputPath
   ];
   await runFfmpeg(args, {});
+}
+
+function pickPosterTime(duration) {
+  if (!Number.isFinite(duration) || duration < 60) return config.posterAt;
+  const min = Math.max(10, duration * 0.15);
+  const max = Math.max(min + 1, duration * 0.75);
+  return String(Math.floor(min + Math.random() * (max - min)));
 }
 
 function runFfmpeg(args, options) {
