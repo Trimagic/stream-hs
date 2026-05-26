@@ -851,11 +851,6 @@ small,
   transform: translateX(0);
 }
 
-.player-dock:fullscreen[data-playlist-open="true"] .player-topbar,
-.player-dock:fullscreen[data-playlist-open="true"] .player-controls {
-  right: var(--playlist-width);
-}
-
 .player-dock:fullscreen[data-playlist-open="false"] .player-playlist {
   opacity: 0;
   pointer-events: none;
