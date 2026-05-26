@@ -39,7 +39,7 @@ input {
 button {
   min-height: 46px;
   border: 1px solid #354330;
-  border-radius: 8px;
+  border-radius: 2px;
   padding: 11px 16px;
   background: var(--accent);
   color: #10150f;
@@ -70,7 +70,7 @@ input:focus-visible,
 input {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   padding: 13px 14px;
   background: #0a0f0a;
   color: var(--text);
@@ -131,7 +131,7 @@ small,
   margin-top: 8px;
   padding: 5px 9px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 2px;
   background: var(--surface);
   color: var(--muted);
   font-size: 12px;
@@ -142,7 +142,7 @@ small,
   gap: 8px;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 2px;
   background: var(--surface);
 }
 
@@ -156,7 +156,7 @@ small,
 }
 
 .tabs button {
-  border-radius: 999px;
+  border-radius: 2px;
 }
 
 .tabs button.active,
@@ -169,7 +169,7 @@ small,
   margin-bottom: 14px;
   padding: 12px 14px;
   border: 1px solid #354330;
-  border-radius: 8px;
+  border-radius: 2px;
   background: #142014;
 }
 
@@ -181,7 +181,7 @@ small,
 .panel,
 .player-dock {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -193,7 +193,7 @@ small,
   min-height: 440px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   background:
     linear-gradient(110deg, rgba(8, 11, 8, 0.3), rgba(8, 11, 8, 0.98) 52%),
     var(--surface-strong);
@@ -261,7 +261,7 @@ small,
 .raw-status {
   padding: 6px 9px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 2px;
   background: #10170f;
   color: var(--muted);
   font-size: 12px;
@@ -307,7 +307,7 @@ small,
   min-height: 238px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   background: var(--tile);
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
@@ -360,7 +360,7 @@ small,
   z-index: 2;
   padding: 6px 9px;
   border: 1px solid rgba(232, 97, 97, 0.44);
-  border-radius: 999px;
+  border-radius: 2px;
   background: rgba(232, 97, 97, 0.16);
   color: #ffd1d1;
   font-size: 12px;
@@ -456,7 +456,7 @@ small,
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   background: #000;
 }
 
@@ -515,7 +515,7 @@ small,
   min-height: 92px;
   place-items: center;
   transform: translate(-50%, -50%);
-  border-radius: 999px;
+  border-radius: 2px;
   border-color: rgba(184, 245, 106, 0.5);
   background: rgba(5, 8, 5, 0.74);
   color: var(--accent);
@@ -589,7 +589,7 @@ small,
   min-height: 54px;
   place-items: center;
   padding: 0;
-  border-radius: 999px;
+  border-radius: 2px;
 }
 
 .icon-button svg {
@@ -728,7 +728,7 @@ small,
   margin-bottom: 16px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   background: #10170f;
 }
 
@@ -748,7 +748,7 @@ small,
 .bar {
   height: 8px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 2px;
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -774,7 +774,7 @@ small,
 .folder-mark {
   width: 26px;
   height: 18px;
-  border-radius: 5px;
+  border-radius: 2px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 
@@ -791,7 +791,7 @@ small,
   min-height: 76px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 2px;
   background: #10170f;
 }
 
