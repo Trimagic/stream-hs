@@ -150,6 +150,8 @@ function PlayerDock({
   const [volume, setVolume] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -192,6 +194,14 @@ function PlayerDock({
 
   if (!media) return null;
 
+  const showControls = () => {
+    setControlsVisible(true);
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => {
+      if (!videoRef.current?.paused) setControlsVisible(false);
+    }, 2600);
+  };
+
   const seekTo = (value: number) => {
     const video = videoRef.current;
     if (!video) return;
@@ -203,6 +213,7 @@ function PlayerDock({
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
+    showControls();
     if (video.paused) {
       video.play().catch(() => setPlaying(false));
     } else {
@@ -240,6 +251,7 @@ function PlayerDock({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    showControls();
     if (event.key === " " || event.key === "Enter") {
       event.preventDefault();
       togglePlay();
@@ -264,7 +276,15 @@ function PlayerDock({
   };
 
   return (
-    <section className="player-dock" ref={dockRef} tabIndex={0} onKeyDown={handleKeyDown} aria-label="Video player">
+    <section
+      className={`player-dock ${controlsVisible || !playing ? "controls-visible" : "controls-hidden"}`}
+      ref={dockRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onMouseMove={showControls}
+      onFocus={showControls}
+      aria-label="Video player"
+    >
       <div className="player-stage">
         <video
           ref={videoRef}
@@ -282,8 +302,8 @@ function PlayerDock({
           }}
         />
         <div className="player-topbar">
-          <button className="ghost" onClick={onClose}>
-            Back
+          <button className="icon-button ghost" onClick={onClose} aria-label="Back">
+            <Icon name="back" />
           </button>
           <div className="player-copy">
             <span>Now playing</span>
@@ -292,16 +312,10 @@ function PlayerDock({
         </div>
 
         <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-          {playing ? "Pause" : "Play"}
+          <Icon name={playing ? "pause" : "play"} />
         </button>
 
         <div className="player-controls">
-          <span>Now playing</span>
-          <small>
-            {formatDuration(duration || media.duration)} - {media.video.width}x{media.video.height} -{" "}
-            {media.video.copied ? "video copy" : "transcoded"}
-          </small>
-
           <div className="timeline-row">
             <span>{formatDuration(currentTime)}</span>
             <input
@@ -318,37 +332,57 @@ function PlayerDock({
           </div>
 
           <div className="control-row">
-            <button onClick={togglePlay}>{playing ? "Pause" : "Play"}</button>
-            <button className="ghost" onClick={() => seekTo(currentTime - 10)}>
-              -10s
+            <div className="control-left">
+              <small>
+                {media.video.width}x{media.video.height} - {media.video.copied ? "copy" : "transcoded"}
+              </small>
+            </div>
+            <div className="control-center">
+            <button className="icon-button ghost" onClick={() => seekTo(currentTime - 10)} aria-label="Back 10 seconds">
+              <Icon name="rewind" />
             </button>
-            <button className="ghost" onClick={() => seekTo(currentTime + 10)}>
-              +10s
+            <button className="icon-button primary-icon" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+              <Icon name={playing ? "pause" : "play"} />
             </button>
-            <button className="ghost" onClick={toggleMute}>
-              {muted ? "Sound on" : "Mute"}
+            <button className="icon-button ghost" onClick={() => seekTo(currentTime + 10)} aria-label="Forward 10 seconds">
+              <Icon name="forward" />
             </button>
-            <input
-              className="volume"
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={muted ? 0 : volume}
-              onChange={(event) => setVideoVolume(Number(event.target.value))}
-              aria-label="Volume"
-            />
-            <button className="ghost" onClick={toggleFullscreen}>
-              Fullscreen
-            </button>
-            <button className="ghost" onClick={onClose}>
-              Close
-            </button>
+            </div>
+            <div className="control-right">
+              <button className="icon-button ghost" onClick={toggleMute} aria-label={muted ? "Sound on" : "Mute"}>
+                <Icon name={muted || volume === 0 ? "volumeOff" : "volume"} />
+              </button>
+              <input
+                className="volume"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={muted ? 0 : volume}
+                onChange={(event) => setVideoVolume(Number(event.target.value))}
+                aria-label="Volume"
+              />
+              <button className="icon-button ghost" onClick={toggleFullscreen} aria-label="Fullscreen">
+                <Icon name="fullscreen" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </section>
   );
+}
+
+function Icon({ name }: { name: "play" | "pause" | "back" | "rewind" | "forward" | "volume" | "volumeOff" | "fullscreen" }) {
+  const common = { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (name === "play") return <svg {...common}><path d="M8 5v14l11-7z" fill="currentColor" stroke="none" /></svg>;
+  if (name === "pause") return <svg {...common}><path d="M8 5v14" /><path d="M16 5v14" /></svg>;
+  if (name === "back") return <svg {...common}><path d="M15 18l-6-6 6-6" /><path d="M9 12h11" /></svg>;
+  if (name === "rewind") return <svg {...common}><path d="M11 19l-8-7 8-7v14z" /><path d="M21 19l-8-7 8-7v14z" /></svg>;
+  if (name === "forward") return <svg {...common}><path d="M13 5l8 7-8 7V5z" /><path d="M3 5l8 7-8 7V5z" /></svg>;
+  if (name === "volume") return <svg {...common}><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M17 9a5 5 0 010 6" /><path d="M19.5 6.5a8.5 8.5 0 010 11" /></svg>;
+  if (name === "volumeOff") return <svg {...common}><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M18 9l4 4" /><path d="M22 9l-4 4" /></svg>;
+  return <svg {...common}><path d="M8 3H5a2 2 0 00-2 2v3" /><path d="M16 3h3a2 2 0 012 2v3" /><path d="M8 21H5a2 2 0 01-2-2v-3" /><path d="M16 21h3a2 2 0 002-2v-3" /></svg>;
 }
 
 function LibraryPage({

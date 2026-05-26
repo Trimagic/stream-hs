@@ -190,6 +190,7 @@ h2 {
   padding: 22px 24px 60px;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.82), transparent);
   pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .player-topbar button,
@@ -212,6 +213,7 @@ h2 {
   background: rgba(255, 159, 40, 0.84);
   color: #120a04;
   backdrop-filter: blur(18px);
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .player-stage:hover .center-play,
@@ -229,6 +231,7 @@ h2 {
   gap: 12px;
   padding: 86px 24px 22px;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.58) 58%, transparent);
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .player-copy {
@@ -256,8 +259,8 @@ small,
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 62px minmax(120px, 1fr) 78px;
-  gap: 10px;
+  grid-template-columns: 70px minmax(160px, 1fr) 82px;
+  gap: 14px;
   align-items: center;
   color: var(--amber-2);
   font-weight: 800;
@@ -269,19 +272,99 @@ small,
   cursor: pointer;
 }
 
-.control-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.timeline {
+  width: 100%;
 }
 
-.control-row button {
-  min-width: 92px;
+.control-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.control-left,
+.control-center,
+.control-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-left {
+  min-width: 0;
+}
+
+.control-center {
+  justify-content: center;
+}
+
+.control-right {
+  justify-content: flex-end;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  place-items: center;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.primary-icon {
+  width: 68px;
+  min-width: 68px;
+  height: 68px;
+  min-height: 68px;
+  border-color: rgba(255, 211, 106, 0.72);
+  background: linear-gradient(135deg, var(--amber), #e85f22);
+  color: #120a04;
 }
 
 .volume {
-  width: 130px;
+  width: 118px;
   min-height: 46px;
+}
+
+.controls-hidden {
+  cursor: none;
+}
+
+.controls-hidden .player-topbar,
+.controls-hidden .player-controls,
+.controls-hidden .center-play {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.controls-hidden .player-topbar {
+  transform: translateY(-12px);
+}
+
+.controls-hidden .player-controls {
+  transform: translateY(18px);
+}
+
+.controls-hidden .center-play {
+  transform: translate(-50%, -50%) scale(0.92);
+}
+
+.controls-visible .player-topbar,
+.controls-visible .player-controls,
+.controls-visible .center-play,
+.player-stage:focus-within .player-topbar,
+.player-stage:focus-within .player-controls,
+.player-stage:focus-within .center-play {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .player-dock:fullscreen {
@@ -608,6 +691,16 @@ small,
   .raw-row,
   .job-card {
     grid-template-columns: 1fr;
+  }
+
+  .control-row {
+    grid-template-columns: 1fr;
+  }
+
+  .control-left,
+  .control-center,
+  .control-right {
+    justify-content: center;
   }
 
   .source-form {
