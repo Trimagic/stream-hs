@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { api, getDeviceId } from "./api";
 import type { Config, MediaManifest, PrepareJob, SourceBrowse, WatchState } from "./types";
 
@@ -92,9 +91,8 @@ export function App() {
     }
   }
 
-  function selectAndFullscreen(item: MediaManifest) {
-    flushSync(() => setSelected(item));
-    document.querySelector<HTMLElement>(".player-dock")?.requestFullscreen().catch(() => {});
+  function selectMedia(item: MediaManifest) {
+    setSelected(item);
   }
 
   const selectedState = selected ? watchState[selected.id] : null;
@@ -125,11 +123,11 @@ export function App() {
         watchState={selectedState}
         onClose={() => setSelected(null)}
         onSaved={refreshLibrary}
-        onSelect={selectAndFullscreen}
+        onSelect={selectMedia}
       />
 
       {view === "library" ? (
-        <LibraryPage media={media} watchState={watchState} onSelect={selectAndFullscreen} />
+        <LibraryPage media={media} watchState={watchState} onSelect={selectMedia} />
       ) : (
         <StoragePage
           config={config}
@@ -176,7 +174,6 @@ function PlayerDock({
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [buffering, setBuffering] = useState(false);
-  const [shouldAutoFullscreen, setShouldAutoFullscreen] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
   function showControls() {
@@ -195,7 +192,6 @@ function PlayerDock({
     setDuration(media.duration || 0);
     setPlaying(false);
     setBuffering(true);
-    setShouldAutoFullscreen(true);
     const position = watchState?.position || 0;
     const setStart = () => {
       const nextDuration = Number.isFinite(video.duration) ? video.duration : media.duration || 0;
@@ -227,12 +223,6 @@ function PlayerDock({
     }, 5000);
     return () => window.clearInterval(timer);
   }, [media?.id, onSaved]);
-
-  useEffect(() => {
-    if (!media || !shouldAutoFullscreen || !dockRef.current || document.fullscreenElement) return;
-    dockRef.current.requestFullscreen().catch(() => {});
-    setShouldAutoFullscreen(false);
-  }, [media?.id, shouldAutoFullscreen]);
 
   useEffect(() => {
     return () => {
