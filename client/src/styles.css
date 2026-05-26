@@ -899,6 +899,10 @@ small,
   width: calc(100vw - var(--playlist-width));
 }
 
+.player-dock:fullscreen.controls-hidden[data-playlist-open="true"] .player-stage {
+  width: 100vw;
+}
+
 .player-dock:fullscreen .player-stage video {
   width: 100vw;
   height: 100vh;
@@ -909,6 +913,10 @@ small,
 
 .player-dock:fullscreen[data-playlist-open="true"] .player-stage video {
   width: calc(100vw - var(--playlist-width));
+}
+
+.player-dock:fullscreen.controls-hidden[data-playlist-open="true"] .player-stage video {
+  width: 100vw;
 }
 
 .player-dock:fullscreen .player-topbar {
