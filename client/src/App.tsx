@@ -281,63 +281,70 @@ function PlayerDock({
             setMuted(event.currentTarget.muted);
           }}
         />
+        <div className="player-topbar">
+          <button className="ghost" onClick={onClose}>
+            Back
+          </button>
+          <div className="player-copy">
+            <span>Now playing</span>
+            <strong>{media.title}</strong>
+          </div>
+        </div>
+
         <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
           {playing ? "Pause" : "Play"}
         </button>
-      </div>
 
-      <div className="player-controls">
-        <div className="player-copy">
+        <div className="player-controls">
           <span>Now playing</span>
-          <strong>{media.title}</strong>
           <small>
             {formatDuration(duration || media.duration)} - {media.video.width}x{media.video.height} -{" "}
             {media.video.copied ? "video copy" : "transcoded"}
           </small>
-        </div>
 
-        <div className="timeline-row">
-          <span>{formatDuration(currentTime)}</span>
-          <input
-            className="timeline"
-            type="range"
-            min="0"
-            max={Math.max(duration || 0, 1)}
-            step="0.25"
-            value={Math.min(currentTime, Math.max(duration || 0, 1))}
-            onChange={(event) => seekTo(Number(event.target.value))}
-            aria-label="Seek"
-          />
-          <span>{formatDuration(duration || media.duration)}</span>
-        </div>
+          <div className="timeline-row">
+            <span>{formatDuration(currentTime)}</span>
+            <input
+              className="timeline"
+              type="range"
+              min="0"
+              max={Math.max(duration || 0, 1)}
+              step="0.25"
+              value={Math.min(currentTime, Math.max(duration || 0, 1))}
+              onChange={(event) => seekTo(Number(event.target.value))}
+              aria-label="Seek"
+            />
+            <span>{formatDuration(duration || media.duration)}</span>
+          </div>
 
-        <div className="control-row">
-          <button onClick={togglePlay}>{playing ? "Pause" : "Play"}</button>
-          <button className="ghost" onClick={() => seekTo(currentTime - 10)}>
-            -10s
-          </button>
-          <button className="ghost" onClick={() => seekTo(currentTime + 10)}>
-            +10s
-          </button>
-          <button className="ghost" onClick={toggleMute}>
-            {muted ? "Sound on" : "Mute"}
-          </button>
-          <input
-            className="volume"
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={muted ? 0 : volume}
-            onChange={(event) => setVideoVolume(Number(event.target.value))}
-            aria-label="Volume"
-          />
-          <button className="ghost" onClick={toggleFullscreen}>
-            Fullscreen
-          </button>
-          <button className="ghost" onClick={onClose}>
-            Close
-          </button>
+          <div className="control-row">
+            <button onClick={togglePlay}>{playing ? "Pause" : "Play"}</button>
+            <button className="ghost" onClick={() => seekTo(currentTime - 10)}>
+              -10s
+            </button>
+            <button className="ghost" onClick={() => seekTo(currentTime + 10)}>
+              +10s
+            </button>
+            <button className="ghost" onClick={toggleMute}>
+              {muted ? "Sound on" : "Mute"}
+            </button>
+            <input
+              className="volume"
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={muted ? 0 : volume}
+              onChange={(event) => setVideoVolume(Number(event.target.value))}
+              aria-label="Volume"
+            />
+            <button className="ghost" onClick={toggleFullscreen}>
+              Fullscreen
+            </button>
+            <button className="ghost" onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </section>
