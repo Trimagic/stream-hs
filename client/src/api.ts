@@ -1,6 +1,6 @@
 import type { Config, MediaManifest, PrepareJob, SourceBrowse, WatchState } from "./types";
 
-const apiBase = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const apiBase = import.meta.env.VITE_API_URL || "";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBase}${url}`, {
