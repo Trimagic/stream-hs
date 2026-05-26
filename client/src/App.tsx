@@ -246,6 +246,7 @@ function PlayerDock({
       const active = document.fullscreenElement === dockRef.current;
       if (active) {
         showControls();
+        window.setTimeout(() => dockRef.current?.focus(), 60);
       } else {
         setPlaylistOpen(false);
       }
@@ -305,6 +306,10 @@ function PlayerDock({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    handlePlayerKeyDown(event);
+  };
+
+  const handlePlayerKeyDown = (event: Pick<React.KeyboardEvent, "key" | "keyCode" | "which" | "preventDefault">) => {
     const keyCode = event.keyCode || event.which;
     const key = event.key;
     const active = document.activeElement as HTMLElement | null;
@@ -417,6 +422,15 @@ function PlayerDock({
       }
     }
   };
+
+  useEffect(() => {
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      if (!media || document.fullscreenElement !== dockRef.current) return;
+      handlePlayerKeyDown(event);
+    };
+    document.addEventListener("keydown", handleDocumentKeyDown);
+    return () => document.removeEventListener("keydown", handleDocumentKeyDown);
+  });
 
   return (
     <section
@@ -602,6 +616,7 @@ function LibraryPage({
   watchState: Record<string, WatchState>;
   onSelect: (media: MediaManifest) => void;
 }) {
+  const resumeRef = useRef<HTMLButtonElement | null>(null);
   const ready = useMemo(() => media.filter((item) => item.ready), [media]);
   const latest = useMemo(() => {
     return [...ready].sort((a, b) => {
@@ -610,6 +625,12 @@ function LibraryPage({
       return bState.localeCompare(aState);
     })[0] || ready[0];
   }, [ready, watchState]);
+
+  useEffect(() => {
+    if (!latest || !resumeRef.current) return;
+    const timer = window.setTimeout(() => resumeRef.current?.focus(), 120);
+    return () => window.clearTimeout(timer);
+  }, [latest?.id, media.length]);
   return (
     <main className="content-grid">
       {latest ? (
@@ -626,7 +647,7 @@ function LibraryPage({
               <span>{latest.video.width ? `${latest.video.width}x${latest.video.height}` : latest.video.codec || "video"}</span>
               <span>{latest.audio.codec} {latest.audio.channels}ch</span>
             </div>
-            <button className="hero-action" onClick={() => onSelect(latest)}>
+            <button ref={resumeRef} className="hero-action" onClick={() => onSelect(latest)}>
               Resume
             </button>
           </div>
@@ -643,7 +664,7 @@ function LibraryPage({
 
       {media.length === 0 && <div className="empty panel">No prepared videos yet. Open Storage and prepare a source file.</div>}
 
-      <MediaGrid title="All prepared" media={media} watchState={watchState} onSelect={onSelect} />
+      <MediaGrid title="All prepared" media={media} watchState={watchState} onSelect={onSelect} autoFocusFirst={!latest} />
     </main>
   );
 }
@@ -652,13 +673,23 @@ function MediaGrid({
   title,
   media,
   watchState,
-  onSelect
+  onSelect,
+  autoFocusFirst = false
 }: {
   title: string;
   media: MediaManifest[];
   watchState: Record<string, WatchState>;
   onSelect: (media: MediaManifest) => void;
+  autoFocusFirst?: boolean;
 }) {
+  const firstCardRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!autoFocusFirst || !firstCardRef.current) return;
+    const timer = window.setTimeout(() => firstCardRef.current?.focus(), 120);
+    return () => window.clearTimeout(timer);
+  }, [autoFocusFirst, media.length]);
+
   if (media.length === 0) return null;
 
   return (
@@ -668,13 +699,14 @@ function MediaGrid({
         <span>{media.length}</span>
       </div>
       <div className="media-grid" aria-label={title}>
-        {media.map((item) => {
+        {media.map((item, index) => {
           const state = watchState[item.id];
           const percent = state?.duration ? Math.min(100, Math.round((state.position / state.duration) * 100)) : 0;
           return (
             <article
               className="media-card"
               key={item.id}
+              ref={index === 0 ? firstCardRef : undefined}
               tabIndex={0}
               onClick={() => item.ready && onSelect(item)}
               onKeyDown={(event) => {
