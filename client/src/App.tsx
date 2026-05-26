@@ -251,8 +251,6 @@ function PlayerDock({
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
-  if (!media) return null;
-
   const seekTo = (value: number) => {
     const video = videoRef.current;
     if (!video) return;
@@ -427,6 +425,8 @@ function PlayerDock({
     document.addEventListener("keydown", handleDocumentKeyDown);
     return () => document.removeEventListener("keydown", handleDocumentKeyDown);
   });
+
+  if (!media) return null;
 
   return (
     <section
