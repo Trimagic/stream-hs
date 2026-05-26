@@ -195,7 +195,7 @@ small,
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
-    linear-gradient(110deg, rgba(8, 11, 8, 0.08), rgba(8, 11, 8, 0.94) 58%),
+    linear-gradient(110deg, rgba(8, 11, 8, 0.3), rgba(8, 11, 8, 0.98) 52%),
     var(--surface-strong);
   box-shadow: var(--shadow);
 }
@@ -217,14 +217,30 @@ small,
   filter: saturate(0.9) contrast(1.06);
 }
 
+.library-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(8, 11, 8, 0.18), rgba(8, 11, 8, 0.78) 58%, rgba(8, 11, 8, 0.96)),
+    linear-gradient(0deg, rgba(8, 11, 8, 0.55), transparent 48%);
+  pointer-events: none;
+}
+
 .hero-copy {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   align-content: center;
   justify-items: start;
   gap: 14px;
+  min-width: 0;
   padding: clamp(24px, 5vw, 58px);
+}
+
+.hero-copy h2 {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .hero-copy p {
@@ -237,6 +253,7 @@ small,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  max-width: 100%;
 }
 
 .hero-meta span,
@@ -260,51 +277,32 @@ small,
   grid-template-columns: 1fr;
 }
 
-.rail-section {
+.grid-section {
   display: grid;
   gap: 12px;
 }
 
-.rail-header {
+.grid-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
 }
 
-.rail-header span {
+.grid-header span {
   color: var(--muted);
   font-weight: 800;
 }
 
-.media-rail {
+.media-grid {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(310px, 370px);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  padding: 2px 2px 16px;
-  scroll-snap-type: inline proximity;
-}
-
-.media-rail::-webkit-scrollbar {
-  height: 8px;
-}
-
-.media-rail::-webkit-scrollbar-track {
-  background: #111711;
-  border-radius: 999px;
-}
-
-.media-rail::-webkit-scrollbar-thumb {
-  background: #3a5331;
-  border-radius: 999px;
+  padding: 2px;
 }
 
 .media-card {
   position: relative;
-  scroll-snap-align: start;
   display: block;
   min-height: 238px;
   overflow: hidden;
@@ -875,8 +873,8 @@ small,
     padding-top: 14px;
   }
 
-  .media-rail {
-    grid-auto-columns: minmax(250px, 86vw);
+  .media-grid {
+    grid-template-columns: 1fr;
   }
 
   .timeline-row {

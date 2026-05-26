@@ -411,8 +411,6 @@ function LibraryPage({
       return bState.localeCompare(aState);
     })[0] || ready[0];
   }, [ready, watchState]);
-  const continueWatching = ready.filter((item) => (watchState[item.id]?.position || 0) > 5);
-
   return (
     <main className="content-grid">
       {latest ? (
@@ -446,16 +444,12 @@ function LibraryPage({
 
       {media.length === 0 && <div className="empty panel">No prepared videos yet. Open Storage and prepare a source file.</div>}
 
-      {continueWatching.length > 0 && (
-        <MediaRail title="Continue watching" media={continueWatching} watchState={watchState} onSelect={onSelect} />
-      )}
-
-      <MediaRail title="All prepared" media={media} watchState={watchState} onSelect={onSelect} />
+      <MediaGrid title="All prepared" media={media} watchState={watchState} onSelect={onSelect} />
     </main>
   );
 }
 
-function MediaRail({
+function MediaGrid({
   title,
   media,
   watchState,
@@ -469,12 +463,12 @@ function MediaRail({
   if (media.length === 0) return null;
 
   return (
-    <section className="rail-section">
-      <div className="rail-header">
+    <section className="grid-section">
+      <div className="grid-header">
         <h3>{title}</h3>
         <span>{media.length}</span>
       </div>
-      <div className="media-rail" aria-label={title}>
+      <div className="media-grid" aria-label={title}>
         {media.map((item) => {
           const state = watchState[item.id];
           const percent = state?.duration ? Math.min(100, Math.round((state.position / state.duration) * 100)) : 0;
