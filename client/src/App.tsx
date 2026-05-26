@@ -166,6 +166,7 @@ function PlayerDock({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
   function showControls() {
@@ -226,7 +227,8 @@ function PlayerDock({
       const active = document.fullscreenElement === dockRef.current;
       if (active) {
         showControls();
-        window.setTimeout(() => firstPlaylistRef.current?.focus(), 180);
+      } else {
+        setPlaylistOpen(false);
       }
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -311,6 +313,7 @@ function PlayerDock({
   return (
     <section
       className={`player-dock ${controlsVisible || !playing ? "controls-visible" : "controls-hidden"} ${playing ? "is-playing" : "is-paused"}`}
+      data-playlist-open={playlistOpen ? "true" : "false"}
       ref={dockRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
@@ -398,6 +401,18 @@ function PlayerDock({
               <button className="icon-button ghost" onClick={toggleFullscreen} aria-label="Fullscreen">
                 <Icon name="fullscreen" />
               </button>
+              <button
+                className="icon-button ghost"
+                onClick={() => {
+                  const next = !playlistOpen;
+                  setPlaylistOpen(next);
+                  showControls();
+                  if (next) window.setTimeout(() => firstPlaylistRef.current?.focus(), 120);
+                }}
+                aria-label="Playlist"
+              >
+                <Icon name="playlist" />
+              </button>
             </div>
           </div>
         </div>
@@ -430,7 +445,7 @@ function PlayerDock({
   );
 }
 
-function Icon({ name }: { name: "play" | "pause" | "back" | "rewind" | "forward" | "volume" | "volumeOff" | "fullscreen" }) {
+function Icon({ name }: { name: "play" | "pause" | "back" | "rewind" | "forward" | "volume" | "volumeOff" | "fullscreen" | "playlist" }) {
   const common = { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (name === "play") return <svg {...common}><path d="M8 5v14l11-7z" fill="currentColor" stroke="none" /></svg>;
   if (name === "pause") return <svg {...common}><path d="M8 5v14" /><path d="M16 5v14" /></svg>;
@@ -439,6 +454,7 @@ function Icon({ name }: { name: "play" | "pause" | "back" | "rewind" | "forward"
   if (name === "forward") return <svg {...common}><path d="M13 5l8 7-8 7V5z" /><path d="M3 5l8 7-8 7V5z" /></svg>;
   if (name === "volume") return <svg {...common}><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M17 9a5 5 0 010 6" /><path d="M19.5 6.5a8.5 8.5 0 010 11" /></svg>;
   if (name === "volumeOff") return <svg {...common}><path d="M4 9v6h4l5 4V5L8 9H4z" /><path d="M18 9l4 4" /><path d="M22 9l-4 4" /></svg>;
+  if (name === "playlist") return <svg {...common}><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>;
   return <svg {...common}><path d="M8 3H5a2 2 0 00-2 2v3" /><path d="M16 3h3a2 2 0 012 2v3" /><path d="M8 21H5a2 2 0 01-2-2v-3" /><path d="M16 21h3a2 2 0 002-2v-3" /></svg>;
 }
 
