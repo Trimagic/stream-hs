@@ -439,7 +439,7 @@ function PlayerDock({
                 </span>
                 <span className="playlist-copy">
                   <strong>{item.title}</strong>
-                  <small>{String(index + 1).padStart(2, "0")} - {item.sourceRelativePath}</small>
+                  <small>{String(index + 1).padStart(2, "0")}</small>
                 </span>
               </button>
             ))}
