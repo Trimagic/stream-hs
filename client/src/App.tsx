@@ -318,7 +318,7 @@ function PlayerDock({
     handlePlayerKeyDown(event);
   };
 
-  const handlePlayerKeyDown = (event: Pick<React.KeyboardEvent, "key" | "keyCode" | "which" | "preventDefault">) => {
+  const handlePlayerKeyDown = (event: Pick<React.KeyboardEvent, "key" | "keyCode" | "which" | "preventDefault" | "stopPropagation">) => {
     const keyCode = event.keyCode || event.which;
     const key = event.key;
     const active = document.activeElement as HTMLElement | null;
@@ -329,6 +329,7 @@ function PlayerDock({
 
     if (!playlistOpen && document.fullscreenElement === dockRef.current && (key === "ArrowDown" || keyCode === 40)) {
       event.preventDefault();
+      event.stopPropagation();
       setPlaylistOpen(true);
       window.setTimeout(() => firstPlaylistRef.current?.focus(), 120);
       return;
@@ -338,26 +339,31 @@ function PlayerDock({
       const currentPlaylistIndex = activePlaylistIndex >= 0 ? activePlaylistIndex : 0;
       if (key === "ArrowDown" || keyCode === 40) {
         event.preventDefault();
+        event.stopPropagation();
         playlistButtonRefs.current[Math.min(currentPlaylistIndex + 1, playlistButtonRefs.current.length - 1)]?.focus();
         return;
       }
       if (key === "ArrowUp" || keyCode === 38) {
         event.preventDefault();
+        event.stopPropagation();
         playlistButtonRefs.current[Math.max(currentPlaylistIndex - 1, 0)]?.focus();
         return;
       }
       if (key === "ArrowLeft" || keyCode === 37 || key === "Escape" || key === "BrowserBack" || keyCode === 10009 || keyCode === 461) {
         event.preventDefault();
+        event.stopPropagation();
         setPlaylistOpen(false);
         dockRef.current?.focus();
         return;
       }
       if (key === "Enter" || key === " " || keyCode === 13) {
         event.preventDefault();
+        event.stopPropagation();
         const target = activePlaylistIndex >= 0 ? active : playlistButtonRefs.current[0];
         target?.click();
         return;
       }
+      event.stopPropagation();
       return;
     }
 
@@ -435,6 +441,7 @@ function PlayerDock({
   useEffect(() => {
     const handleDocumentKeyDown = (event: KeyboardEvent) => {
       if (!media || document.fullscreenElement !== dockRef.current) return;
+      if (dockRef.current?.contains(event.target as Node)) return;
       handlePlayerKeyDown(event);
     };
     document.addEventListener("keydown", handleDocumentKeyDown);
@@ -449,7 +456,7 @@ function PlayerDock({
       data-playlist-open={playlistOpen ? "true" : "false"}
       ref={dockRef}
       tabIndex={0}
-      onKeyDown={handleKeyDown}
+      onKeyDownCapture={handleKeyDown}
       onMouseMove={showControls}
       onFocus={showControls}
       aria-label="Video player"
