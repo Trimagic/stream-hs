@@ -296,18 +296,26 @@ function PlayerDock({
 
     showControls();
 
-    if (playlistOpen && activePlaylistIndex >= 0) {
+    if (!playlistOpen && document.fullscreenElement === dockRef.current && (key === "ArrowDown" || keyCode === 40)) {
+      event.preventDefault();
+      setPlaylistOpen(true);
+      window.setTimeout(() => firstPlaylistRef.current?.focus(), 120);
+      return;
+    }
+
+    if (playlistOpen) {
+      const currentPlaylistIndex = activePlaylistIndex >= 0 ? activePlaylistIndex : 0;
       if (key === "ArrowDown" || keyCode === 40) {
         event.preventDefault();
-        playlistButtonRefs.current[Math.min(activePlaylistIndex + 1, playlistButtonRefs.current.length - 1)]?.focus();
+        playlistButtonRefs.current[Math.min(currentPlaylistIndex + 1, playlistButtonRefs.current.length - 1)]?.focus();
         return;
       }
       if (key === "ArrowUp" || keyCode === 38) {
         event.preventDefault();
-        playlistButtonRefs.current[Math.max(activePlaylistIndex - 1, 0)]?.focus();
+        playlistButtonRefs.current[Math.max(currentPlaylistIndex - 1, 0)]?.focus();
         return;
       }
-      if (key === "ArrowLeft" || keyCode === 37) {
+      if (key === "ArrowLeft" || keyCode === 37 || key === "Escape" || key === "BrowserBack" || keyCode === 10009 || keyCode === 461) {
         event.preventDefault();
         setPlaylistOpen(false);
         dockRef.current?.focus();
@@ -315,9 +323,11 @@ function PlayerDock({
       }
       if (key === "Enter" || key === " " || keyCode === 13) {
         event.preventDefault();
-        active?.click();
+        const target = activePlaylistIndex >= 0 ? active : playlistButtonRefs.current[0];
+        target?.click();
         return;
       }
+      return;
     }
 
     if ([" ", "Enter", "MediaPlayPause", "Play", "Pause", "k"].includes(key) || keyCode === 13 || keyCode === 10252) {
