@@ -97,7 +97,7 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <span className="eyebrow">Signal Deck</span>
+          <span className="eyebrow">Lime Glass Cinema</span>
           <h1>Stream HS</h1>
           <small className="device-label">Device {deviceId.slice(-8)}</small>
         </div>
@@ -404,32 +404,83 @@ function LibraryPage({
   onSelect: (media: MediaManifest) => void;
 }) {
   const ready = useMemo(() => media.filter((item) => item.ready), [media]);
-  const latest = ready[0];
+  const latest = useMemo(() => {
+    return [...ready].sort((a, b) => {
+      const aState = watchState[a.id]?.updatedAt || "";
+      const bState = watchState[b.id]?.updatedAt || "";
+      return bState.localeCompare(aState);
+    })[0] || ready[0];
+  }, [ready, watchState]);
+  const continueWatching = ready.filter((item) => (watchState[item.id]?.position || 0) > 5);
 
   return (
     <main className="content-grid">
-      <section className="library-hero">
-        <div>
-          <span className="eyebrow">Library matrix</span>
-          <h2>{ready.length} prepared streams</h2>
-          <p>Select a tile to open the player. Each device keeps its own watch position.</p>
-        </div>
-        {latest && (
-          <button className="hero-action" onClick={() => onSelect(latest)}>
-            Resume latest
-          </button>
-        )}
-      </section>
+      {latest ? (
+        <section className="library-hero">
+          <div className="hero-art">
+            {latest.urls?.poster ? <img src={latest.urls.poster} alt="" /> : <div className="poster-placeholder" />}
+          </div>
+          <div className="hero-copy">
+            <span className="eyebrow">Featured stream</span>
+            <h2>{latest.title}</h2>
+            <p>{latest.sourceRelativePath}</p>
+            <div className="hero-meta">
+              <span>{formatDuration(latest.duration)}</span>
+              <span>{latest.video.width ? `${latest.video.width}x${latest.video.height}` : latest.video.codec || "video"}</span>
+              <span>{latest.audio.codec} {latest.audio.channels}ch</span>
+            </div>
+            <button className="hero-action" onClick={() => onSelect(latest)}>
+              Resume
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="library-hero empty-hero">
+          <div className="hero-copy">
+            <span className="eyebrow">Library</span>
+            <h2>No streams yet</h2>
+            <p>Open Storage and prepare a video file to build your library.</p>
+          </div>
+        </section>
+      )}
 
       {media.length === 0 && <div className="empty panel">No prepared videos yet. Open Storage and prepare a source file.</div>}
 
-      <section className="media-grid" aria-label="Prepared videos">
-        {media.map((item, index) => {
+      {continueWatching.length > 0 && (
+        <MediaRail title="Continue watching" media={continueWatching} watchState={watchState} onSelect={onSelect} />
+      )}
+
+      <MediaRail title="All prepared" media={media} watchState={watchState} onSelect={onSelect} />
+    </main>
+  );
+}
+
+function MediaRail({
+  title,
+  media,
+  watchState,
+  onSelect
+}: {
+  title: string;
+  media: MediaManifest[];
+  watchState: Record<string, WatchState>;
+  onSelect: (media: MediaManifest) => void;
+}) {
+  if (media.length === 0) return null;
+
+  return (
+    <section className="rail-section">
+      <div className="rail-header">
+        <h3>{title}</h3>
+        <span>{media.length}</span>
+      </div>
+      <div className="media-rail" aria-label={title}>
+        {media.map((item) => {
           const state = watchState[item.id];
           const percent = state?.duration ? Math.min(100, Math.round((state.position / state.duration) * 100)) : 0;
           return (
             <article
-              className={index === 0 ? "media-card featured-card" : "media-card"}
+              className="media-card"
               key={item.id}
               tabIndex={0}
               onClick={() => item.ready && onSelect(item)}
@@ -459,8 +510,8 @@ function LibraryPage({
             </article>
           );
         })}
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }
 
