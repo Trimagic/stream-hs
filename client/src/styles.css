@@ -531,6 +531,50 @@ small,
   transition: opacity 180ms ease, transform 180ms ease;
 }
 
+.player-loader {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 82px;
+  height: 82px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(184, 245, 106, 0.24);
+  border-radius: 999px;
+  background: rgba(5, 8, 5, 0.72);
+}
+
+.player-loader span {
+  width: 6px;
+  height: 28px;
+  background: var(--accent);
+  animation: loaderPulse 760ms ease-in-out infinite;
+}
+
+.player-loader span:nth-child(2) {
+  animation-delay: 110ms;
+}
+
+.player-loader span:nth-child(3) {
+  animation-delay: 220ms;
+}
+
+@keyframes loaderPulse {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scaleY(0.58);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
 .player-controls {
   position: absolute;
   left: 0;

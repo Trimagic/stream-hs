@@ -167,6 +167,7 @@ function PlayerDock({
   const [duration, setDuration] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [buffering, setBuffering] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
   function showControls() {
@@ -184,6 +185,7 @@ function PlayerDock({
     setCurrentTime(0);
     setDuration(media.duration || 0);
     setPlaying(false);
+    setBuffering(true);
     const position = watchState?.position || 0;
     const setStart = () => {
       const nextDuration = Number.isFinite(video.duration) ? video.duration : media.duration || 0;
@@ -330,6 +332,12 @@ function PlayerDock({
           onClick={togglePlay}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
+          onLoadStart={() => setBuffering(true)}
+          onWaiting={() => setBuffering(true)}
+          onSeeking={() => setBuffering(true)}
+          onCanPlay={() => setBuffering(false)}
+          onPlaying={() => setBuffering(false)}
+          onSeeked={() => setBuffering(false)}
           onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
           onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : media.duration || 0)}
           onVolumeChange={(event) => {
@@ -350,6 +358,14 @@ function PlayerDock({
         <button className="center-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
           <Icon name={playing ? "pause" : "play"} />
         </button>
+
+        {buffering && (
+          <div className="player-loader" aria-label="Loading video">
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
 
         <div className="player-controls">
           <div className="timeline-row">
