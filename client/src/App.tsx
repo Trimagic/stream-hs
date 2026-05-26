@@ -97,7 +97,7 @@ export function App() {
     <div className="app-shell">
       <header className="app-header">
         <div>
-          <span className="eyebrow">Amber Glass</span>
+          <span className="eyebrow">Signal Deck</span>
           <h1>Stream HS</h1>
           <small className="device-label">Device {deviceId.slice(-8)}</small>
         </div>
@@ -410,9 +410,9 @@ function LibraryPage({
     <main className="content-grid">
       <section className="library-hero">
         <div>
-          <span className="eyebrow">Marathon palette</span>
-          <h2>{ready.length} streams online</h2>
-          <p>Poster panels, big focus states, and remote-friendly controls for sofa playback.</p>
+          <span className="eyebrow">Library matrix</span>
+          <h2>{ready.length} prepared streams</h2>
+          <p>Select a tile to open the player. Each device keeps its own watch position.</p>
         </div>
         {latest && (
           <button className="hero-action" onClick={() => onSelect(latest)}>
@@ -424,12 +424,12 @@ function LibraryPage({
       {media.length === 0 && <div className="empty panel">No prepared videos yet. Open Storage and prepare a source file.</div>}
 
       <section className="media-grid" aria-label="Prepared videos">
-        {media.map((item) => {
+        {media.map((item, index) => {
           const state = watchState[item.id];
           const percent = state?.duration ? Math.min(100, Math.round((state.position / state.duration) * 100)) : 0;
           return (
             <article
-              className="media-card"
+              className={index === 0 ? "media-card featured-card" : "media-card"}
               key={item.id}
               tabIndex={0}
               onClick={() => item.ready && onSelect(item)}
