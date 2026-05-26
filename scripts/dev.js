@@ -16,10 +16,7 @@ const children = [
     cwd: root,
     stdio: "inherit",
     shell: false,
-    env: {
-      ...process.env,
-      VITE_API_URL: process.env.VITE_API_URL || "http://localhost:4000"
-    }
+    env: process.env
   })
 ];
 

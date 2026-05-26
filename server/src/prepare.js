@@ -154,6 +154,9 @@ function buildPrepareArgs(inputPath, outputPath, copyVideo) {
   return [
     "-hide_banner",
     "-y",
+    "-progress",
+    "pipe:2",
+    "-nostats",
     "-i",
     inputPath,
     "-map",
@@ -203,7 +206,7 @@ function runFfmpeg(args, options) {
     ffmpeg.stderr.on("data", (chunk) => {
       const text = chunk.toString();
       stderr += text;
-      const seconds = parseFfmpegTime(text);
+      const seconds = parseFfmpegProgressTime(text) ?? parseFfmpegTime(text);
       if (seconds != null && options.duration) {
         const progress = Math.max(0, Math.min(99, Math.round((seconds / options.duration) * 100)));
         options.onProgress?.(progress);
@@ -295,6 +298,15 @@ function parseFfmpegTime(text) {
   return Number(last[1]) * 3600 + Number(last[2]) * 60 + Number(last[3]);
 }
 
+function parseFfmpegProgressTime(text) {
+  const outTimeMs = [...text.matchAll(/out_time_ms=(\d+)/g)].at(-1);
+  if (outTimeMs) return Number(outTimeMs[1]) / 1_000_000;
+
+  const outTime = [...text.matchAll(/out_time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)].at(-1);
+  if (!outTime) return null;
+  return Number(outTime[1]) * 3600 + Number(outTime[2]) * 60 + Number(outTime[3]);
+}
+
 function publicJob(job) {
   return {
     id: job.id,
@@ -309,4 +321,3 @@ function publicJob(job) {
 function windowlessDelayDelete(id) {
   setTimeout(() => jobs.delete(id), 1000 * 60 * 10);
 }
-

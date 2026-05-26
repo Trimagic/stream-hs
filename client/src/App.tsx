@@ -289,6 +289,21 @@ function StoragePage({
       </section>
 
       <section className="panel browser-panel">
+        {jobs.length > 0 && (
+          <div className="jobs-strip">
+            <span className="eyebrow">Active preparations</span>
+            {jobs.map((job) => (
+              <div className="job-card" key={job.id}>
+                <div>
+                  <strong>{job.media.title}</strong>
+                  <small>{job.status === "error" ? job.error || "error" : `${job.progress}% ready`}</small>
+                </div>
+                <div className="bar"><i style={{ width: `${job.progress}%` }} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="breadcrumbs">
           {(source?.breadcrumbs || [{ name: "Root", path: "" }]).map((crumb) => (
             <button key={crumb.path || "root"} onClick={() => onNavigate(crumb.path)}>
@@ -320,7 +335,7 @@ function StoragePage({
                 <span>{video.directPlay ? "direct" : "prepare"}</span>
                 <div className="progress-cell">
                   <div className="bar"><i style={{ width: `${job?.progress || 0}%` }} /></div>
-                  <small>{job?.status || "idle"}</small>
+                  <small>{job ? `${job.status} · ${job.progress}%` : "idle"}</small>
                 </div>
                 <button onClick={() => onPrepare(video.path)} disabled={job?.status === "processing"}>
                   {job?.status === "processing" ? "Preparing" : "Prepare"}
@@ -352,4 +367,3 @@ function formatDuration(seconds: number | null) {
   const rest = total % 60;
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
-

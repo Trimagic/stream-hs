@@ -280,6 +280,35 @@ small,
   margin-bottom: 14px;
 }
 
+.jobs-strip {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  border-radius: 8px;
+  background: rgba(249, 115, 22, 0.08);
+}
+
+.job-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 360px);
+  gap: 12px;
+  align-items: center;
+}
+
+.job-card div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.job-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .folder-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -335,7 +364,8 @@ small,
   }
 
   .media-row,
-  .raw-row {
+  .raw-row,
+  .job-card {
     grid-template-columns: 1fr;
   }
 
@@ -343,4 +373,3 @@ small,
     grid-template-columns: 1fr;
   }
 }
-
